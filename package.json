@@ -1,0 +1,25 @@
+{
+  "name": "bkh_assist",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @bkh/web",
+    "build": "npm run typecheck -w @bkh/shared && npm run build -w @bkh/web",
+    "start": "npm run start -w @bkh/web",
+    "lint": "npm run lint -w @bkh/web",
+    "typecheck": "npm run typecheck -w @bkh/shared && npm run typecheck -w @bkh/web",
+    "db:migrate": "node --env-file=.env scripts/migrate.mjs"
+  },
+  "allowScripts": {
+    "koffi@3.3.7": true,
+    "uiohook-napi@1.5.5": true,
+    "esbuild@0.28.2": true
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@bkh/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "bkh_assist Windows agent: watches HOSxP XE saves and alerts on missing data",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "npm run build && electron .",
+    "demo": "npm run build && electron . --demo",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "electron": "^45.2.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@bkh/shared": "^0.1.0",
+    "koffi": "^3.3.7",
+    "uiohook-napi": "^1.5.5"
+  }
+}

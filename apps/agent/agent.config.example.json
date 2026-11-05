@@ -1,0 +1,8 @@
+{
+  "serverUrl": "http://localhost:3000",
+  "agentKey": "<same value as AGENT_ENROLL_KEY in the server .env>",
+  "module": "OPDVisitcheck",
+  "moduleLabel": "ซักประวัติ OPD",
+  "pollMs": 2000,
+  "pollTimeoutMs": 30000
+}
