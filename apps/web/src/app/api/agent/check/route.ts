@@ -1,6 +1,6 @@
 import { CheckRequestSchema, type ApiError, type CheckResponse } from "@bkh/shared";
 import { isAgentAuthorized } from "@/lib/agent-auth";
-import { recordCheck, touchMachine, withRuleSettings } from "@/lib/check-store";
+import { isModuleAllowed, recordCheck, touchMachine, withRuleSettings } from "@/lib/check-store";
 import { resolveVisit } from "@/lib/resolve-visit";
 import { runRules } from "@/lib/rules/engine";
 import { getModule } from "@/lib/rules/modules";
@@ -34,6 +34,9 @@ export async function POST(req: Request) {
   const codeModule = getModule(input.module);
   if (!codeModule) return error(400, { error: "unknown_module" });
   const [machineId, mod] = await Promise.all([touchMachine(input.machine), withRuleSettings(codeModule)]);
+  // Settings from the admin page: machine/module switched off, or module not assigned to this machine.
+  const allowed = await isModuleAllowed(machineId, codeModule.code);
+  if (!allowed.ok) return error(403, { error: allowed.reason });
 
   try {
     const resolution = await resolveVisit(input);

@@ -29,6 +29,37 @@ export async function touchMachine(machineName: string): Promise<number | null> 
   }
 }
 
+/** What the admin page set for this machine: is it active, and which active modules does it check. */
+export async function machineConfig(machineId: number) {
+  const [machine] = await assistQuery<{ is_active: boolean }>("SELECT is_active FROM machines WHERE id = $1", [machineId]);
+  const modules = await assistQuery<{ code: string; label: string; hosxp_form: string | null }>(
+    `SELECT m.code, m.label, m.hosxp_form FROM machine_modules mm JOIN modules m ON m.code = mm.module_code
+     WHERE mm.machine_id = $1 AND m.is_active ORDER BY m.label`,
+    [machineId],
+  );
+  return {
+    active: machine?.is_active ?? true,
+    modules: modules.map((m) => ({ code: m.code, label: m.label, hosxpForm: m.hosxp_form })),
+  };
+}
+
+/**
+ * May this machine run this module? Denied when an admin switched the machine or module off, or the
+ * module is not assigned to the machine. Allowed when the assist DB is unavailable (checks keep working).
+ */
+export async function isModuleAllowed(machineId: number | null, moduleCode: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (machineId == null) return { ok: true };
+  try {
+    const cfg = await machineConfig(machineId);
+    if (!cfg.active) return { ok: false, reason: "machine_disabled" };
+    if (!cfg.modules.some((m) => m.code === moduleCode)) return { ok: false, reason: "module_not_enabled" };
+    return { ok: true };
+  } catch (err) {
+    warn("isModuleAllowed", err);
+    return { ok: true };
+  }
+}
+
 type RuleSettingRow = { rule_code: string; is_active: boolean; severity: "error" | "warning" | null; sort_order: number | null };
 
 /**

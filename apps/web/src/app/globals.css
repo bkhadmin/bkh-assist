@@ -1,24 +1,185 @@
 @import "tailwindcss";
 
+/*
+ * Theme is set on <html data-theme="light|dark"> by the inline script in app/layout.tsx
+ * (before first paint) and by ThemeSwitch afterwards. `dark:` follows that attribute.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Styles that apply only inside the desktop rail while it is collapsed (<html data-sidebar="collapsed">). */
+@custom-variant collapsed (:where([data-sidebar="collapsed"] .rail) &);
+
+/*
+ * Design tokens. Every token exists in both themes; use them through Tailwind
+ * (bg-surface, text-muted, border-line, bg-accent, text-danger, bg-success-soft …).
+ * Contrast (WCAG AA) is checked for each text/background pair listed in the PR.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f2f4f1; /* app canvas behind sidebar and panel */
+  --surface: #ffffff; /* content panel, cards, inputs */
+  --surface-sunken: #f6f8f5; /* table group rows, wells */
+  --line: #e1e5df; /* hairline borders */
+  --hover: #e7ebe5; /* hover fill on the canvas */
+  --foreground: #18201b;
+  --muted: #5c665f; /* secondary text, table headers */
+
+  --accent: #22c55e; /* bright green fill: primary button, highlights */
+  --accent-fg: #052e16; /* text/icons on --accent */
+  --accent-text: #166534; /* green text/icons on light surfaces */
+  --accent-soft: #dcf7e4; /* active nav item, selected row */
+  --accent-line: #a7e9bd; /* border around --accent-soft */
+  --ring: #15803d; /* focus ring */
+
+  --danger: #b42318;
+  --danger-soft: #fef1f1;
+  --danger-line: #f9c9c9;
+  --warning: #a15c07;
+  --warning-soft: #fff7e6;
+  --warning-line: #f5d79e;
+  --success: #157a3b;
+  --success-soft: #ecfbf1;
+  --success-line: #b4ebc6;
+
+  /* Chart series: categorical, fixed order, one slot per entity (never re-assigned by rank).
+     Validated on --surface with the dataviz palette validator: adjacent CVD dE >= 9.1, normal-vision >= 19.6.
+     Slots 3-5 are under 3:1 on white, so every chart also ships a table view.
+     --chart-other is the neutral fold for everything past slot 7, not a ninth hue. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #6250d6;
+  --chart-other: #a9b2ab;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0e1210;
+  --surface: #151b17;
+  --surface-sunken: #1a211c;
+  --line: #26302a;
+  --hover: #1f2722;
+  --foreground: #e4ebe6;
+  --muted: #96a39a;
+
+  --accent: #2fb864;
+  --accent-fg: #04170a;
+  --accent-text: #5ad88a;
+  --accent-soft: #143221;
+  --accent-line: #235a38;
+  --ring: #3ccf74;
+
+  --danger: #f8a5a0;
+  --danger-soft: #2b1616;
+  --danger-line: #5a2626;
+  --warning: #f3c76a;
+  --warning-soft: #2a2010;
+  --warning-line: #5a4518;
+  --success: #7fdca0;
+  --success-soft: #12281a;
+  --success-line: #22502f;
+
+  /* Same hues stepped for the dark surface: adjacent CVD dE >= 8.4, all >= 3:1. */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-other: #56625a;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-ring: var(--ring);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-line: var(--warning-line);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-line: var(--success-line);
+  /* Type scale: nothing above 13px except `text-title` and `text-kpi`. Only xs/sm/base/title/kpi exist (text-lg, text-2xl …
+     are not generated); headings step up by weight and color, not size. Line heights leave room for Thai vowels and tone marks. */
+  --text-*: initial;
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 18px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  /* The one exception: page / section / card / dialog titles. */
+  --text-title: 14px;
+  --text-title--line-height: 20px;
+  --text-title--font-weight: 600;
+  /* KPI numbers on dashboards only: read at a glance from across the desk. Weight comes from the class. */
+  --text-kpi: 28px;
+  --text-kpi--line-height: 1.1;
+  /* DataGrid font sizes (trial): header `text-grid-head`, data cells `text-grid-cell`.
+     To revert: head 0.75rem / 1rem (= text-xs), cell 0.875rem / 1.25rem (= text-sm). */
+  --text-grid-head: 13px;
+  --text-grid-head--line-height: 18px;
+  --text-grid-cell: 11px;
+  --text-grid-cell--line-height: 16px;
+  /* Inter for Latin and digits, Noto Sans Thai for Thai glyphs. */
+  --font-sans: var(--font-inter), var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Desktop sidebar width; the rail animates between 15rem and 4rem. */
+.rail {
+  width: 15rem;
+  transition: width 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+[data-sidebar="collapsed"] .rail {
+  width: 4rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    transition: none;
   }
+}
+
+html {
+  scrollbar-color: var(--line) transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, "Segoe UI", Tahoma, sans-serif;
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/* Tailwind v4 preflight gives buttons cursor: default; restore the hand on everything clickable (snippet from the v4 upgrade guide, extended). Disabled keeps default. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  summary,
+  select:not(:disabled),
+  input:is([type="checkbox"], [type="radio"]):not(:disabled),
+  label:has(> input:is([type="checkbox"], [type="radio"]):not(:disabled)) {
+    cursor: pointer;
+  }
 }

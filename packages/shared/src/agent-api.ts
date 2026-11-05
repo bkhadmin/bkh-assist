@@ -59,5 +59,25 @@ export const ApiErrorSchema = z.object({
 });
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 
+/**
+ * `GET /api/agent/config?machine=<hostname>`: the modules this machine checks, as set on the admin page.
+ * The agent picks a module by the HOSxP form whose save button was pressed (`hosxpForm`).
+ */
+export const AgentModuleSchema = z.object({
+  code: z.string(),
+  label: z.string(),
+  /** Delphi form class of the HOSxP screen, e.g. "TDoctorWorkBenchQueueManagerForm". */
+  hosxpForm: z.string().nullable(),
+});
+export type AgentModule = z.infer<typeof AgentModuleSchema>;
+
+export const AgentConfigResponseSchema = z.object({
+  machine: z.string(),
+  /** false = an admin switched this machine off: the agent checks nothing. */
+  active: z.boolean(),
+  modules: z.array(AgentModuleSchema),
+});
+export type AgentConfigResponse = z.infer<typeof AgentConfigResponseSchema>;
+
 /** Header carrying the agent key. */
 export const AGENT_KEY_HEADER = "x-agent-key";

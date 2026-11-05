@@ -10,6 +10,7 @@ export type CheckOutcome =
   | { kind: "result"; response: CheckResponse }
   | { kind: "gave_up" } // never written (cancelled save) or not found in time
   | { kind: "cancelled" } // superseded by a newer save
+  | { kind: "denied"; reason: string } // admin switched this machine/module off or did not assign it
   | { kind: "error"; message: string };
 
 export class Checker {
@@ -18,14 +19,14 @@ export class Checker {
   constructor(private cfg: AgentConfig) {}
 
   /** Start checking a save; a newer save cancels the previous one. */
-  async check(input: { hn: string | null; savedAt: Date }): Promise<CheckOutcome> {
+  async check(input: { module: string; hn: string | null; savedAt: Date }): Promise<CheckOutcome> {
     this.current?.abort();
     const ctrl = new AbortController();
     this.current = ctrl;
 
     const body: CheckRequest = {
       machine: this.cfg.machine,
-      module: this.cfg.module,
+      module: input.module,
       savedAt: input.savedAt.toISOString(),
       ...(input.hn ? { hn: input.hn } : {}),
     };
@@ -43,6 +44,10 @@ export class Checker {
           signal: AbortSignal.any([ctrl.signal, AbortSignal.timeout(5000)]),
         });
         if (res.status === 401) return { kind: "error", message: "server ปฏิเสธ agent key" };
+        if (res.status === 403) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          return { kind: "denied", reason: body?.error ?? "forbidden" };
+        }
         if (!res.ok) {
           lastError = `server ตอบ ${res.status}`;
           continue;

@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
   // Native-ish Node driver: keep it out of the server bundle.
   serverExternalPackages: ["mysql2"],
   allowedDevOrigins,
+  // Bottom-left is taken by the sidebar's profile block.
+  devIndicators: { position: "bottom-right" },
   turbopack: {
     root: repoRoot,
     rules: {
