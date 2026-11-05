@@ -8,11 +8,13 @@
     "build": "node build.mjs",
     "start": "npm run build && electron .",
     "demo": "npm run build && electron . --demo",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dist": "node pack.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
   },

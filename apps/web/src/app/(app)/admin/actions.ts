@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { assistExecute, assistTransaction } from "@/lib/assist";
+import { assistExecute, assistQuery, assistTransaction } from "@/lib/assist";
 import { getModule } from "@/lib/rules/modules";
 
 /**
@@ -121,6 +121,16 @@ export async function saveMachine(input: z.input<typeof MachineInput>): Promise<
   const p = MachineInput.safeParse(input);
   if (!p.success) return fail("ข้อมูลไม่ถูกต้อง");
   const { id, displayName, department, isActive, modules } = p.data;
+  // One module per HOSxP screen per machine: modules on the same form are triggered by the same save button,
+  // so e.g. Doctorcheck on a nurse's screening save would always complain that there is no diagnosis yet.
+  if (modules.length > 1) {
+    const rows = await assistQuery<{ hosxp_form: string; labels: string[] }>(
+      `SELECT hosxp_form, array_agg(label ORDER BY label) AS labels FROM modules
+       WHERE code = ANY($1::text[]) AND hosxp_form IS NOT NULL GROUP BY hosxp_form HAVING count(*) > 1`,
+      [modules],
+    );
+    if (rows.length) return fail(`เลือกได้ module เดียวต่อหน้าจอ HOSxP: ${rows[0].labels.join(" กับ ")} ใช้หน้าจอเดียวกัน`);
+  }
   await assistTransaction(async (db) => {
     await db.query(
       `UPDATE machines SET display_name = nullif($2, ''), department = nullif($3, ''), is_active = $4, updated_at = now()

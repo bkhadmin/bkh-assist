@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense, type ReactNode } from "react";
 import { auth } from "@/auth";
 
@@ -13,6 +14,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 }
 
 async function AdminOnly({ children }: { children: ReactNode }) {
+  await connection(); // auth() uses crypto.getRandomValues: request time only (see user-menu.tsx)
   const session = await auth();
   if (session?.user.role !== "admin") redirect("/");
   return children;

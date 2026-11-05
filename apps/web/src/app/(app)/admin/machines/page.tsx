@@ -29,7 +29,7 @@ async function Machines() {
       {machines.length === 0 ? (
         <Empty>ยังไม่มีเครื่อง ติดตั้งและเปิด agent แล้วเครื่องจะขึ้นที่นี่</Empty>
       ) : (
-        <MachineList machines={machines} modules={modules.map((m) => ({ code: m.code, label: m.label, isActive: m.is_active }))} />
+        <MachineList machines={machines} modules={modules.map((m) => ({ code: m.code, label: m.label, isActive: m.is_active, hosxpForm: m.hosxp_form }))} />
       )}
     </Card>
   );

@@ -1,8 +1,12 @@
+import { connection } from "next/server";
 import { auth, signOut } from "@/auth";
 import { ProfileMenu } from "./profile-menu";
 
 // Server component: reads the session cookie, so it must sit inside <Suspense> (cacheComponents).
 export async function UserMenu() {
+  // auth() draws random bytes (crypto.getRandomValues) before it touches the cookie; under cacheComponents that
+  // counts as an unstable value during prerender. Mark this as request-time first.
+  await connection();
   const session = await auth();
   if (!session?.user?.name) return null;
 

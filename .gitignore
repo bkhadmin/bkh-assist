@@ -18,3 +18,9 @@ npm-debug.log*
 
 # agent local config (contains the agent key)
 apps/agent/agent.config.json
+
+# agent installer build output
+apps/agent/release/
+
+# local screenshots and scratch output
+tmp/

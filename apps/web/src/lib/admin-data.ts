@@ -183,8 +183,8 @@ export async function listMachines(): Promise<MachineRow[]> {
 }
 
 export async function moduleOptions() {
-  return assistQuery<{ code: string; label: string; is_active: boolean }>(
-    "SELECT code, label, is_active FROM modules ORDER BY label",
+  return assistQuery<{ code: string; label: string; is_active: boolean; hosxp_form: string | null }>(
+    "SELECT code, label, is_active, hosxp_form FROM modules ORDER BY label",
   );
 }
 

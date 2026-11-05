@@ -6,7 +6,7 @@ import { Badge, Notice, ago, btn, btnPrimary, field, focusRing } from "@/compone
 import type { MachineRow } from "@/lib/admin-data";
 import { saveMachine } from "../actions";
 
-type ModuleOption = { code: string; label: string; isActive: boolean };
+type ModuleOption = { code: string; label: string; isActive: boolean; hosxpForm: string | null };
 
 /** An agent counts as online if it reported within this window (same as the overview page). */
 const ONLINE_SECONDS = 15 * 60;
@@ -75,13 +75,24 @@ function MachineEditor({ machine, modules, onDone }: { machine: MachineRow; modu
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  const formOf = new Map(modules.map((m) => [m.code, m.hosxpForm]));
+  // Modules on the same HOSxP screen share its save button, so a machine checks at most one of them:
+  // ticking one unticks the others on that screen (the server enforces the same rule).
   const toggle = (code: string) =>
     setSelected((s) => {
       const n = new Set(s);
-      if (n.has(code)) n.delete(code);
-      else n.add(code);
+      if (n.has(code)) {
+        n.delete(code);
+        return n;
+      }
+      const form = formOf.get(code);
+      if (form) for (const other of n) if (formOf.get(other) === form) n.delete(other);
+      n.add(code);
       return n;
     });
+  const sharedForms = new Set(
+    modules.map((m) => m.hosxpForm).filter((f, i, all): f is string => f != null && all.indexOf(f) !== i),
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,6 +132,9 @@ function MachineEditor({ machine, modules, onDone }: { machine: MachineRow; modu
             {!mod.isActive && <Badge>module ปิดอยู่</Badge>}
           </label>
         ))}
+        {sharedForms.size > 0 && (
+          <p className="pt-1 text-sm text-muted">module ที่ใช้หน้าจอ HOSxP เดียวกัน (เช่น ซักประวัติกับห้องตรวจแพทย์) เลือกได้ทีละหนึ่งต่อเครื่อง เพราะใช้ปุ่มบันทึกปุ่มเดียวกัน</p>
+        )}
       </fieldset>
 
       <div className="col-span-full flex items-center gap-2">

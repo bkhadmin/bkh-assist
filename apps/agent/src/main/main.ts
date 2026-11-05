@@ -9,7 +9,7 @@
  *   --shot-dir=<dir>   with --demo: save a PNG of each alert state, then quit
  */
 import { app, Menu, shell, Tray } from "electron";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AlertState } from "../shared/alert-state";
 import { AlertWindow } from "./alert-window";
@@ -32,9 +32,24 @@ app.setAppUserModelId("bkh_assist.agent");
 let tray: Tray | null = null;
 let alert: AlertWindow;
 
+// A packaged GUI app has no console, so log lines also go to %APPDATA%\bkh_assist agent\logs\agent.log
+// (tray: "เปิดโฟลเดอร์ log"). One rotation at 1 MB keeps it small. Never log names/CID; HN only as yes/no.
+const LOG_MAX_BYTES = 1024 * 1024;
+let logFile: string | null = null;
 function log(...parts: unknown[]) {
-  console.log(new Date().toISOString(), ...parts);
+  const line = [new Date().toISOString(), ...parts.map((p) => (p instanceof Error ? (p.stack ?? p.message) : String(p)))].join(" ");
+  console.log(line);
+  try {
+    logFile ??= (mkdirSync(app.getPath("logs"), { recursive: true }), join(app.getPath("logs"), "agent.log"));
+    if (existsSync(logFile) && statSync(logFile).size > LOG_MAX_BYTES) renameSync(logFile, `${logFile}.1`);
+    appendFileSync(logFile, line + "\n");
+  } catch {
+    // logging must never break the agent
+  }
 }
+console.error = (...parts: unknown[]) => log("ERROR", ...parts); // watcher/checker report through console.error
+process.on("uncaughtException", (err) => log("uncaughtException", err));
+process.on("unhandledRejection", (err) => log("unhandledRejection", err));
 
 function toAlert(moduleLabel: string, ev: SaveEvent, outcome: CheckOutcome): AlertState | null {
   const base = { hn: ev.hn, module: moduleLabel };
