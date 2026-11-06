@@ -1,6 +1,6 @@
 {
   "name": "@bkh/agent",
-  "version": "691106.1.1",
+  "version": "691106.1.2",
   "private": true,
   "description": "bkh_assist Windows agent: watches HOSxP XE saves and alerts on missing data",
   "main": "dist/main.js",
