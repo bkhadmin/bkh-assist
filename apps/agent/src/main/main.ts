@@ -56,13 +56,15 @@ function toAlert(moduleLabel: string, ev: SaveEvent, outcome: CheckOutcome): Ale
   if (outcome.kind === "error") return { kind: "error", message: outcome.message };
   if (outcome.kind !== "result") return null; // cancelled / superseded / denied by admin settings: stay quiet
   const r = outcome.response;
-  if (r.status === "ok") return { kind: "ok", ...base };
+  const opportunities = r.opportunities.map(({ category, label }) => ({ category, label }));
+  if (r.status === "ok") return { kind: "ok", ...base, opportunities };
   if (r.status === "ambiguous") return { kind: "ambiguous", ...base, count: r.candidates?.length ?? 2 };
   if (r.status === "missing")
     return {
       kind: "missing",
       ...base,
       items: r.results.filter((x) => !x.passed).map((x) => ({ label: x.label, severity: x.severity })),
+      opportunities,
     };
   return null;
 }
@@ -100,6 +102,7 @@ function buildTray(cfg: AgentConfig, modules: ModuleConfig, status: { server: bo
             hn: null,
             module: list[0]?.label ?? cfg.moduleLabel,
             items: [{ label: "ตัวอย่าง: ความดันโลหิต (BP)", severity: "error" }],
+            opportunities: [],
           }),
       },
       { label: "เปิดโฟลเดอร์ log", click: () => shell.openPath(app.getPath("logs")) },
@@ -116,7 +119,7 @@ async function runDemo(cfg: AgentConfig) {
   const m = cfg.moduleLabel;
   const states: [string, AlertState, boolean?][] = [
     ["1-checking", { kind: "checking", hn: DEMO_HN, module: m }],
-    ["2-ok", { kind: "ok", hn: DEMO_HN, module: m }],
+    ["2-ok", { kind: "ok", hn: DEMO_HN, module: m, opportunities: [] }],
     [
       "3-missing",
       {
@@ -128,12 +131,38 @@ async function runDemo(cfg: AgentConfig) {
           { label: "อาการสำคัญ (CC)", severity: "error" },
           { label: "ประวัติแพ้ยา", severity: "warning" },
         ],
+        opportunities: [],
       },
     ],
-    ["4-collapsed", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ความดันโลหิต (BP)", severity: "error" }, { label: "อาการสำคัญ (CC)", severity: "error" }] }, true],
-    ["5-warning-only", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ประวัติแพ้ยา", severity: "warning" }] }],
+    ["4-collapsed", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ความดันโลหิต (BP)", severity: "error" }, { label: "อาการสำคัญ (CC)", severity: "error" }], opportunities: [] }, true],
+    ["5-warning-only", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ประวัติแพ้ยา", severity: "warning" }], opportunities: [] }],
     ["6-ambiguous", { kind: "ambiguous", hn: null, module: m, count: 3 }],
     ["7-error", { kind: "error", message: "เชื่อมต่อ server ไม่ได้" }],
+    [
+      "8-ok-opportunities",
+      {
+        kind: "ok",
+        hn: DEMO_HN,
+        module: m,
+        opportunities: [
+          { category: "PP", label: "คัดกรองมะเร็งปากมดลูก" },
+          { category: "PP", label: "ตรวจคัดกรองเบาหวานและความดันโลหิตสูงในกลุ่มเสี่ยง" },
+        ],
+      },
+    ],
+    [
+      "9-missing-opportunities",
+      {
+        kind: "missing",
+        hn: DEMO_HN,
+        module: m,
+        items: [
+          { label: "ความดันโลหิต (BP)", severity: "error" },
+          { label: "ประวัติแพ้ยา", severity: "warning" },
+        ],
+        opportunities: [{ category: "PP", label: "คัดกรองมะเร็งปากมดลูก" }],
+      },
+    ],
   ];
   if (SHOT_DIR) mkdirSync(SHOT_DIR, { recursive: true });
   for (const [name, state, collapsed] of states) {

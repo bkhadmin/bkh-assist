@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Badge, Card, Empty, Notice, PageHeader, focusRing } from "@/components/ui/ui";
-import { getModuleDetail } from "@/lib/admin-data";
+import { getModuleDetail, groupOpportunities, listOpportunities } from "@/lib/admin-data";
 import { ModuleForm } from "./module-form";
+import { ModuleOpportunities } from "./module-opportunities";
 import { RulesTable } from "./rules-table";
 
 export const metadata: Metadata = { title: "ตั้งค่า module" };
@@ -21,7 +22,7 @@ export default function ModuleDetailPage({ params }: PageProps<"/admin/modules/[
 async function Detail({ params }: { params: PageProps<"/admin/modules/[code]">["params"] }) {
   await connection();
   const { code } = await params;
-  const m = await getModuleDetail(decodeURIComponent(code));
+  const [m, opportunities] = await Promise.all([getModuleDetail(decodeURIComponent(code)), listOpportunities()]);
   if (!m) notFound();
 
   return (
@@ -79,6 +80,15 @@ async function Detail({ params }: { params: PageProps<"/admin/modules/[code]">["
           </Card>
         </div>
       </div>
+
+      <Card title="ตัวเลือกเสริม: โอกาสเพิ่มรายได้" className="mt-5">
+        <ModuleOpportunities
+          moduleCode={m.code}
+          enabled={m.opportunitiesEnabled}
+          selected={m.opportunityCodes}
+          groups={groupOpportunities(opportunities.map(({ code, label, isActive, category, groupName }) => ({ code, label, isActive, category, groupName })))}
+        />
+      </Card>
     </>
   );
 }

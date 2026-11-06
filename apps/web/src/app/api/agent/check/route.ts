@@ -1,6 +1,7 @@
 import { CheckRequestSchema, type ApiError, type CheckResponse } from "@bkh/shared";
 import { isAgentAuthorized } from "@/lib/agent-auth";
-import { isModuleAllowed, recordCheck, touchMachine, withRuleSettings } from "@/lib/check-store";
+import { isModuleAllowed, moduleOpportunities, recordCheck, touchMachine, withRuleSettings } from "@/lib/check-store";
+import { evaluateOpportunities } from "@/lib/opportunities/engine";
 import { resolveVisit } from "@/lib/resolve-visit";
 import { runRules } from "@/lib/rules/engine";
 import { getModule } from "@/lib/rules/modules";
@@ -43,13 +44,15 @@ export async function POST(req: Request) {
 
     let res: CheckResponse;
     if (resolution.kind === "not_found") {
-      res = { status: "not_found", vn: input.vn, hn: input.hn, results: [] };
+      res = { status: "not_found", vn: input.vn, hn: input.hn, results: [], opportunities: [] };
     } else if (resolution.kind === "ambiguous") {
-      res = { status: "ambiguous", hn: input.hn, results: [], candidates: resolution.candidates };
+      res = { status: "ambiguous", hn: input.hn, results: [], candidates: resolution.candidates, opportunities: [] };
     } else {
       const { vn, hn } = resolution.visit;
       const results = await runRules(mod, vn);
-      res = { status: results.every((r) => r.passed) ? "ok" : "missing", vn, hn, results };
+      // add-on hints (e.g. PP); never change the status and never fail the check
+      const opportunities = await evaluateOpportunities(await moduleOpportunities(mod.code), vn);
+      res = { status: results.every((r) => r.passed) ? "ok" : "missing", vn, hn, results, opportunities };
     }
 
     logCheck(mod.code, res.status, res.vn);

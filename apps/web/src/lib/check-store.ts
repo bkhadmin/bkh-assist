@@ -1,6 +1,7 @@
 import "server-only";
 import type { CheckResponse, RuleResult } from "@bkh/shared";
 import { assistQuery, assistTransaction } from "@/lib/assist";
+import type { OpportunityDef } from "@/lib/opportunities/engine";
 import type { Module } from "@/lib/rules/types";
 
 /**
@@ -87,6 +88,28 @@ export async function withRuleSettings(mod: Module): Promise<Module> {
   return { ...mod, rules };
 }
 
+/**
+ * Opportunities (add-on hints such as PP) the admin selected for this module, in display order.
+ * Empty when the module has the add-on switched off, or when the assist DB is unavailable.
+ */
+export async function moduleOpportunities(moduleCode: string): Promise<OpportunityDef[]> {
+  try {
+    const rows = await assistQuery<OpportunityDef>(
+      `SELECT o.code, o.category, o.label, o.conditions
+       FROM modules m
+       JOIN module_opportunities mo ON mo.module_code = m.code
+       JOIN opportunities o ON o.code = mo.opportunity_code AND o.is_active
+       WHERE m.code = $1 AND m.opportunities_enabled
+       ORDER BY o.category, o.sort_order, o.code`,
+      [moduleCode],
+    );
+    return rows;
+  } catch (err) {
+    warn("moduleOpportunities", err);
+    return [];
+  }
+}
+
 const failed = (results: RuleResult[]) =>
   results.filter((r) => !r.passed).map(({ code, label, severity }) => ({ code, label, severity }));
 
@@ -108,9 +131,12 @@ export async function recordCheck(input: {
   try {
     await assistTransaction(async (db) => {
       await db.query(
-        `INSERT INTO check_logs (saved_at, machine_id, machine_name, module_code, vn, hn, status, missing)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [savedAt, machineId, machineName, moduleCode, res.vn ?? null, res.hn ?? null, res.status, JSON.stringify(missing)],
+        `INSERT INTO check_logs (saved_at, machine_id, machine_name, module_code, vn, hn, status, missing, opportunities)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          savedAt, machineId, machineName, moduleCode, res.vn ?? null, res.hn ?? null, res.status,
+          JSON.stringify(missing), JSON.stringify(res.opportunities.map((o) => o.code)),
+        ],
       );
       if (!res.vn || !res.hn) return;
       if (res.status === "missing") {

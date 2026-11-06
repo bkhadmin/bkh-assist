@@ -1,4 +1,4 @@
-import type { AlertCommand, AlertState } from "../shared/alert-state";
+import type { AlertCommand, AlertOpportunity, AlertState } from "../shared/alert-state";
 
 declare global {
   interface Window {
@@ -31,6 +31,16 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 const hnText = (hn: string | null) => (hn ? `HN <b>${esc(hn)}</b>` : "ไม่ทราบ HN");
 const clock = () => new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
+const oppItems = (opps: AlertOpportunity[]) =>
+  `<ul class="list">${opps.map((o) => `<li class="item opp"><span class="tag cat">${esc(o.category)}</span><span class="label">${esc(o.label)}</span></li>`).join("")}</ul>`;
+
+// "PP 2" per category; shown on the collapsed ok badge
+const oppCounts = (opps: AlertOpportunity[]) => {
+  const n = new Map<string, number>();
+  for (const o of opps) n.set(o.category, (n.get(o.category) ?? 0) + 1);
+  return [...n].map(([c, k]) => `${esc(c)} <span class="count">${k}</span>`).join(" · ");
+};
+
 function pill(cls: string, icon: string, text: string, sub: string) {
   return `<div class="pill ${cls} enter" role="status"><span class="dot">${icon}</span><span class="text">${text}</span><span class="sub">${sub}</span></div>`;
 }
@@ -42,9 +52,32 @@ function render() {
 
   if (s.kind === "checking") {
     root.innerHTML = pill("checking", icons.spinner, "กำลังตรวจข้อมูล", `· ${hnText(s.hn)}`);
-  } else if (s.kind === "ok") {
+  } else if (s.kind === "ok" && s.opportunities.length === 0) {
     root.innerHTML = pill("ok", icons.check, "บันทึกครบถ้วน", `· ${hnText(s.hn)}`);
     timer = window.setTimeout(() => window.bkh.send({ type: "dismiss" }), OK_HIDE_MS);
+  } else if (s.kind === "ok") {
+    if (collapsed) {
+      const who = s.hn ? `<span class="mini-hn">HN ${esc(s.hn)}</span>` : "";
+      root.innerHTML = `<button class="mini opp enter" id="expand" title="ดูโอกาสให้บริการเพิ่ม">${icons.check}${who}<span>${oppCounts(s.opportunities)}</span></button>`;
+    } else {
+      root.innerHTML = `
+        <section class="card opp enter" role="status">
+          <header class="head">
+            <span class="badge-icon">${icons.check}</span>
+            <div class="titles">
+              <div class="title">บันทึกครบ · ทำบริการเพิ่มได้</div>
+              <div class="meta">${hnText(s.hn)} · ${esc(s.module)} · ${clock()} น.</div>
+            </div>
+            <button class="icon-btn" id="collapse" title="ย่อ" aria-label="ย่อ">${icons.close}</button>
+          </header>
+          ${oppItems(s.opportunities)}
+          <footer class="foot">
+            <span class="hint">ข้อมูลครบแล้ว · พิจารณาให้บริการเพิ่มตามสิทธิ์</span>
+            <button class="btn" id="dismiss">รับทราบ</button>
+          </footer>
+        </section>`;
+      timer = window.setTimeout(() => setCollapsed(true), COLLAPSE_AFTER_MS);
+    }
   } else if (s.kind === "error") {
     root.innerHTML = pill("error", icons.offline, "ตรวจข้อมูลไม่ได้", `· ${esc(s.message)}`);
     timer = window.setTimeout(() => window.bkh.send({ type: "dismiss" }), ERROR_HIDE_MS);
@@ -69,6 +102,7 @@ function render() {
             <button class="icon-btn" id="collapse" title="ย่อ" aria-label="ย่อ">${icons.close}</button>
           </header>
           <ul class="list">${items}</ul>
+          ${s.opportunities.length ? `<div class="sec-head">โอกาสให้บริการเพิ่ม</div>${oppItems(s.opportunities)}` : ""}
           <footer class="foot">
             <span class="hint">กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง</span>
             <button class="btn" id="dismiss">รับทราบ</button>

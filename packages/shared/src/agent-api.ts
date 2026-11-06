@@ -43,12 +43,27 @@ export const VisitCandidateSchema = z.object({
 });
 export type VisitCandidate = z.infer<typeof VisitCandidateSchema>;
 
+/**
+ * An add-on "opportunity" (e.g. the patient qualifies for a billable PP service) matched for this visit.
+ * Separate from rule results: it never makes a check "missing", it is only shown as a hint at the point of care.
+ */
+export const OpportunitySchema = z.object({
+  code: z.string(),
+  /** e.g. "PP" */
+  category: z.string(),
+  /** message shown to staff, e.g. "คัดกรองมะเร็งปากมดลูก" */
+  label: z.string(),
+});
+export type Opportunity = z.infer<typeof OpportunitySchema>;
+
 export const CheckResponseSchema = z.object({
   status: CheckStatusSchema,
   vn: z.string().optional(),
   hn: z.string().optional(),
   results: z.array(RuleResultSchema),
   candidates: z.array(VisitCandidateSchema).optional(),
+  /** default [] so an agent keeps working against an older server */
+  opportunities: z.array(OpportunitySchema).default([]),
 });
 export type CheckResponse = z.infer<typeof CheckResponseSchema>;
 

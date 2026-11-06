@@ -1,5 +1,7 @@
 import "server-only";
 import { assistQuery } from "@/lib/assist";
+import type { Condition } from "@/lib/opportunities/conditions";
+import { SOURCES, getSource } from "@/lib/opportunities/sources";
 import { getModule, listModules as listCodeModules } from "@/lib/rules/modules";
 
 /**
@@ -86,13 +88,15 @@ export type RuleRow = {
 export type ModuleDetail = Omit<ModuleRow, "rulesTotal" | "rulesActive"> & {
   rules: RuleRow[];
   machineList: { id: number; name: string; displayName: string | null }[];
+  opportunitiesEnabled: boolean;
+  opportunityCodes: string[];
 };
 
 export async function getModuleDetail(code: string): Promise<ModuleDetail | null> {
   const [mod] = (await listModules()).filter((m) => m.code === code);
   if (!mod) return null;
 
-  const [settings, fails, machines] = await Promise.all([
+  const [settings, fails, machines, [opp]] = await Promise.all([
     assistQuery<{ rule_code: string; is_active: boolean; severity: "error" | "warning" | null; sort_order: number | null }>(
       "SELECT rule_code, is_active, severity, sort_order FROM rule_settings WHERE module_code = $1",
       [code],
@@ -107,6 +111,12 @@ export async function getModuleDetail(code: string): Promise<ModuleDetail | null
     assistQuery<{ id: string; machine_name: string; display_name: string | null }>(
       `SELECT m.id, m.machine_name, m.display_name FROM machines m
        JOIN machine_modules mm ON mm.machine_id = m.id WHERE mm.module_code = $1 ORDER BY m.machine_name`,
+      [code],
+    ),
+    assistQuery<{ opportunities_enabled: boolean; codes: string[] }>(
+      `SELECT opportunities_enabled,
+              coalesce((SELECT array_agg(opportunity_code) FROM module_opportunities WHERE module_code = $1), '{}') AS codes
+       FROM modules WHERE code = $1`,
       [code],
     ),
   ]);
@@ -134,8 +144,94 @@ export async function getModuleDetail(code: string): Promise<ModuleDetail | null
     ...mod,
     rules,
     machineList: machines.map((m) => ({ id: Number(m.id), name: m.machine_name, displayName: m.display_name })),
+    opportunitiesEnabled: opp?.opportunities_enabled ?? false,
+    opportunityCodes: opp?.codes ?? [],
   };
 }
+
+export type OpportunityRow = {
+  code: string;
+  category: string;
+  groupName: string | null;
+  label: string;
+  description: string | null;
+  conditions: Condition[];
+  isActive: boolean;
+  sortOrder: number;
+  /** checks in the last 7 days that showed this opportunity */
+  matches7d: number;
+  /** modules that have it ticked (whether or not their add-on switch is on) */
+  modules: number;
+};
+
+export async function listOpportunities(): Promise<OpportunityRow[]> {
+  const rows = await assistQuery<{
+    code: string;
+    category: string;
+    group_name: string | null;
+    label: string;
+    description: string | null;
+    conditions: Condition[];
+    is_active: boolean;
+    sort_order: number;
+    matches7d: string | null;
+    modules: string;
+  }>(
+    `SELECT o.code, o.category, o.group_name, o.label, o.description, o.conditions, o.is_active, o.sort_order, h.n AS matches7d,
+            (SELECT count(*) FROM module_opportunities mo WHERE mo.opportunity_code = o.code) AS modules
+     FROM opportunities o
+     LEFT JOIN (SELECT x AS code, count(*) AS n FROM check_logs c, jsonb_array_elements_text(c.opportunities) x
+                WHERE c.checked_at > now() - interval '7 days' GROUP BY 1) h ON h.code = o.code
+     ORDER BY o.category, o.sort_order, o.code`,
+  );
+  return rows.map((r) => ({
+    code: r.code,
+    category: r.category,
+    groupName: r.group_name,
+    label: r.label,
+    description: r.description,
+    conditions: r.conditions,
+    isActive: r.is_active,
+    sortOrder: r.sort_order,
+    matches7d: Number(r.matches7d ?? 0),
+    modules: Number(r.modules),
+  }));
+}
+
+/** Category -> group, keeping the order of the rows (already sorted by category, sort_order). */
+export function groupOpportunities<T extends { category: string; groupName: string | null }>(rows: T[]) {
+  const out: { category: string; groups: { name: string | null; items: T[] }[] }[] = [];
+  for (const r of rows) {
+    let c = out.find((x) => x.category === r.category);
+    if (!c) out.push((c = { category: r.category, groups: [] }));
+    let g = c.groups.find((x) => x.name === r.groupName);
+    if (!g) c.groups.push((g = { name: r.groupName, items: [] }));
+    g.items.push(r);
+  }
+  return out;
+}
+
+/** Data sources as plain data for the client form (`build` and the RegExp are not serializable). */
+export type SourceOption = {
+  code: string;
+  label: string;
+  description: string;
+  param?: { label: string; hint: string; pattern: string };
+  columns: { name: string; label: string; type: "number" | "text" }[];
+};
+
+export const sourceOptions = (): SourceOption[] =>
+  SOURCES.map(({ code, label, description, param, columns }) => ({
+    code,
+    label,
+    description,
+    param: param && { label: param.label, hint: param.hint, pattern: param.pattern.source },
+    columns,
+  }));
+
+/** Column label from code for describe(); a stale source/column shows its raw name. */
+export const columnLabel = (c: Condition) =>
+  getSource(c.source)?.columns.find((x) => x.name === c.column)?.label ?? `${c.source}.${c.column}`;
 
 export type MachineRow = {
   id: number;
