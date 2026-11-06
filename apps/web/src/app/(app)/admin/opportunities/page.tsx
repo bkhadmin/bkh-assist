@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { Badge, Card, Empty, PageHeader, btnPrimary, focusRing } from "@/components/ui/ui";
 import { columnLabel, groupOpportunities, listOpportunities } from "@/lib/admin-data";
 import { describe } from "@/lib/opportunities/conditions";
-import { OpportunityActiveSwitch } from "./opportunity-controls";
+import { OpportunityActiveSwitch } from "../item-controls";
 
 export const metadata: Metadata = { title: "โอกาสเพิ่มรายได้" };
 

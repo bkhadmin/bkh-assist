@@ -131,15 +131,22 @@ export const SOURCES: DataSource[] = [
     label: "แล็บ (รหัส lab_items)",
     description: "ประวัติการสั่งแล็บ เช่น 978 = FIT test, 1017 = HPV DNA",
     param: { label: "รหัสแล็บ (lab_items_code)", hint: "คั่นด้วยจุลภาค เช่น 978, 294", pattern: /^[0-9]{1,9}$/ },
-    columns: HISTORY_COLUMNS,
+    columns: [...HISTORY_COLUMNS, { name: "last_value", label: "ผลล่าสุดที่รายงานแล้ว (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" }],
+    // last_value: the latest reported result (confirm_report = 'Y', non-empty) up to the visit; "< 30", "Negative" -> NULL.
+    // Proven 2026-11-06 on a real VN: 22 ms, the subquery runs once (o is const): range on lab_head.ix_hn_order_date
+    // (~100 rows) + eq_ref on lab_order PRIMARY, same plan as the history part.
     build: (codes, vn) => ({
       sql: `SELECT DATEDIFF(o.vstdate, MAX(h.order_date)) AS days_since,
-              COUNT(DISTINCT CASE WHEN h.order_date >= ${FY_START} THEN h.lab_order_number END) AS count_fy
+              COUNT(DISTINCT CASE WHEN h.order_date >= ${FY_START} THEN h.lab_order_number END) AS count_fy,
+              (SELECT CASE WHEN TRIM(r.lab_order_result) REGEXP '^-?[0-9]+([.][0-9]+)?$' THEN TRIM(r.lab_order_result) + 0 END
+               FROM lab_head rh JOIN lab_order r ON r.lab_order_number = rh.lab_order_number AND r.lab_items_code IN (${marks(codes.length)})
+               WHERE rh.hn = o.hn AND ${WINDOW("rh.order_date")} AND rh.confirm_report = 'Y' AND TRIM(r.lab_order_result) <> ''
+               ORDER BY rh.order_date DESC, rh.order_time DESC LIMIT 1) AS last_value
             FROM ovst o
             LEFT JOIN (lab_head h JOIN lab_order lo ON lo.lab_order_number = h.lab_order_number AND lo.lab_items_code IN (${marks(codes.length)}))
               ON h.hn = o.hn AND ${WINDOW("h.order_date")}
             WHERE o.vn = ? GROUP BY o.vn, o.vstdate`,
-      params: [...codes, vn],
+      params: [...codes, ...codes, vn],
     }),
   },
   {

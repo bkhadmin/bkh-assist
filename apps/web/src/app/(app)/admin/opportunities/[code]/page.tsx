@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { Badge, PageHeader } from "@/components/ui/ui";
 import { listOpportunities, sourceOptions } from "@/lib/admin-data";
-import { DeleteOpportunityButton } from "../opportunity-controls";
+import { DeleteOpportunityButton } from "../../item-controls";
 import { OpportunityForm } from "../opportunity-form";
 
 export const metadata: Metadata = { title: "แก้ไขโอกาสเพิ่มรายได้" };

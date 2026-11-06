@@ -250,6 +250,67 @@ export async function deleteOpportunity(code: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+const RluInput = z.object({
+  isNew: z.boolean(),
+  code: z.string().trim().regex(/^[A-Z][A-Z0-9_.]{1,49}$/, "รหัสต้องเป็นตัวพิมพ์ใหญ่ ตัวเลข _ หรือ . ขึ้นต้นด้วยตัวอักษร 2–50 ตัว"),
+  label: z.string().trim().min(1, "ต้องมีชื่อแล็บ").max(100),
+  description: z.string().trim().max(500),
+  // trust boundary: bound as SQL params on HIS by /api/agent/rlu
+  labCodes: z.array(z.string().trim().regex(/^[0-9]{1,9}$/, "รหัสแล็บต้องเป็นตัวเลข")).min(1, "ต้องมีรหัสแล็บอย่างน้อย 1 รหัส").max(20),
+  message: z.string().trim().max(200),
+  sortOrder: z.number().int().min(0).max(1_000_000),
+  isActive: z.boolean(),
+  // no conditions = the item never warns, the agent only shows its results
+  conditions: z.array(ConditionSchema).max(20),
+});
+
+/** Create (isNew) or update an RLU item. The code cannot change after create. */
+export async function saveRluItem(input: z.input<typeof RluInput>): Promise<ActionResult> {
+  await requireAdmin();
+  const p = RluInput.safeParse(input);
+  if (!p.success) return fail(p.error.issues[0].message);
+  const { isNew, code, label, description, message, sortOrder, isActive } = p.data;
+  const conditions: Condition[] = [];
+  for (const [i, c] of p.data.conditions.entries()) {
+    const r = checkCondition(c, i + 1);
+    if (typeof r === "string") return fail(r);
+    conditions.push(r);
+  }
+  const params = [code, label, description, [...new Set(p.data.labCodes)], JSON.stringify(conditions), message, isActive, sortOrder];
+  if (isNew) {
+    const { rowCount } = await assistExecute(
+      `INSERT INTO rlu_items (code, label, description, lab_codes, conditions, message, is_active, sort_order)
+       VALUES ($1, $2, nullif($3, ''), $4::text[], $5::jsonb, nullif($6, ''), $7, $8) ON CONFLICT (code) DO NOTHING`,
+      params,
+    );
+    if (!rowCount) return fail("มีรหัสนี้อยู่แล้ว");
+  } else {
+    const { rowCount } = await assistExecute(
+      `UPDATE rlu_items SET label = $2, description = nullif($3, ''), lab_codes = $4::text[], conditions = $5::jsonb,
+              message = nullif($6, ''), is_active = $7, sort_order = $8, updated_at = now()
+       WHERE code = $1`,
+      params,
+    );
+    if (!rowCount) return fail("ไม่พบรายการนี้");
+  }
+  revalidatePath("/admin/rlu", "layout");
+  return { ok: true };
+}
+
+export async function setRluActive(code: string, isActive: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await assistExecute("UPDATE rlu_items SET is_active = $2, updated_at = now() WHERE code = $1", [code, Boolean(isActive)]);
+  revalidatePath("/admin/rlu", "layout");
+  return { ok: true };
+}
+
+export async function deleteRluItem(code: string): Promise<ActionResult> {
+  await requireAdmin();
+  await assistExecute("DELETE FROM rlu_items WHERE code = $1", [code]);
+  revalidatePath("/admin/rlu", "layout");
+  return { ok: true };
+}
+
 const ModuleOpportunitiesInput = z.object({
   moduleCode: z.string().min(1).max(50),
   enabled: z.boolean(),

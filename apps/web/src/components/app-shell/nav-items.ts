@@ -25,5 +25,6 @@ export const adminSection: NavSection = {
     { label: "Module และกฎ", href: "/admin/modules" },
     { label: "เครื่องที่ติดตั้ง agent", href: "/admin/machines" },
     { label: "โอกาสเพิ่มรายได้", href: "/admin/opportunities" },
+    { label: "RLU (แล็บ)", href: "/admin/rlu" },
   ],
 };

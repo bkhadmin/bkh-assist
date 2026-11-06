@@ -202,6 +202,44 @@ export async function listOpportunities(): Promise<OpportunityRow[]> {
   }));
 }
 
+export type RluRow = {
+  code: string;
+  label: string;
+  description: string | null;
+  labCodes: string[];
+  conditions: Condition[];
+  message: string | null;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+/** RLU items in agent order (see db/migrations/202611071000_rlu.sql). */
+export async function listRluItems(): Promise<RluRow[]> {
+  const rows = await assistQuery<{
+    code: string;
+    label: string;
+    description: string | null;
+    lab_codes: string[];
+    conditions: Condition[];
+    message: string | null;
+    is_active: boolean;
+    sort_order: number;
+  }>(
+    `SELECT code, label, description, lab_codes, conditions, message, is_active, sort_order
+     FROM rlu_items ORDER BY sort_order, code`,
+  );
+  return rows.map((r) => ({
+    code: r.code,
+    label: r.label,
+    description: r.description,
+    labCodes: r.lab_codes,
+    conditions: r.conditions,
+    message: r.message,
+    isActive: r.is_active,
+    sortOrder: r.sort_order,
+  }));
+}
+
 /** Category -> group, keeping the order of the rows (already sorted by category, sort_order). */
 export function groupOpportunities<T extends { category: string; groupName: string | null }>(rows: T[]) {
   const out: { category: string; groups: { name: string | null; items: T[] }[] }[] = [];
