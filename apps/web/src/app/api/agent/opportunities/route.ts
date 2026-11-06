@@ -17,14 +17,21 @@ const PRICES = (n: number) => {
           UNION ALL SELECT icode, unitprice AS price FROM drugitems WHERE icode IN (${marks})`;
 };
 
-/** Price of each opportunity = sum of its icodes' prices; null when it has no icode or none is found in HOSxP. */
+/**
+ * Price of each opportunity = its manual price (admin, e.g. an NHSO lump sum) when set, otherwise the sum of its
+ * icodes' prices; null when it has neither or none of its icodes is found in HOSxP.
+ */
 async function withPrices(items: Opportunity[], defs: Map<string, OpportunityDef>): Promise<Opportunity[]> {
-  const icodes = [...new Set(items.flatMap((o) => defs.get(o.code)?.icodes ?? []))];
-  if (!icodes.length) return items;
-  const rows = await hisQuery<{ icode: string; price: number | string | null }>(PRICES(icodes.length), [...icodes, ...icodes]);
+  const icodesOf = (code: string) => (defs.get(code)?.price != null ? [] : (defs.get(code)?.icodes ?? []));
+  const icodes = [...new Set(items.flatMap((o) => icodesOf(o.code)))];
+  const rows = icodes.length
+    ? await hisQuery<{ icode: string; price: number | string | null }>(PRICES(icodes.length), [...icodes, ...icodes])
+    : [];
   const price = new Map(rows.map((r) => [String(r.icode), Number(r.price ?? 0)]));
   return items.map((o) => {
-    const known = (defs.get(o.code)?.icodes ?? []).filter((c) => price.has(c));
+    const manual = defs.get(o.code)?.price;
+    if (manual != null) return { ...o, price: manual };
+    const known = icodesOf(o.code).filter((c) => price.has(c));
     return { ...o, price: known.length ? known.reduce((sum, c) => sum + price.get(c)!, 0) : null };
   });
 }
