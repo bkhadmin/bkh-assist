@@ -1,6 +1,6 @@
-// electron-vite: main + preload (Node, CJS) and the React alert renderer.
-// Output stays flat in dist/ (dist/main.js, dist/alert-preload.js, dist/renderer/*.html) because
-// alert-window.ts, topbar-window.ts and pack.mjs load those paths.
+// electron-vite: main + preload (Node, CJS) and the React renderers (top bar, panel window).
+// Output stays flat in dist/ (dist/main.js, dist/topbar-preload.js, dist/renderer/*.html) because
+// topbar-window.ts, lab-window.ts and pack.mjs load those paths.
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import { resolve } from "node:path";
@@ -23,7 +23,6 @@ export default defineConfig({
       sourcemap: true,
       lib: {
         entry: {
-          "alert-preload": resolve(__dirname, "src/preload/alert-preload.ts"),
           "topbar-preload": resolve(__dirname, "src/preload/topbar-preload.ts"),
           "lab-preload": resolve(__dirname, "src/preload/lab-preload.ts"),
         },
@@ -40,7 +39,6 @@ export default defineConfig({
       sourcemap: true,
       rollupOptions: {
         input: {
-          alert: resolve(__dirname, "src/renderer/alert.html"),
           topbar: resolve(__dirname, "src/renderer/topbar.html"),
           lab: resolve(__dirname, "src/renderer/lab.html"),
         },

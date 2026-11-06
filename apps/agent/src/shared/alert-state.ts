@@ -1,20 +1,23 @@
 import type { RluItem } from "@bkh/shared";
 
-/** What the alert window shows. Sent main -> renderer over IPC. Never contains names/CID. */
+/** A missing / should-have field of a save check. Never contains names/CID. */
 export type AlertItem = { label: string; severity: "error" | "warning" };
 /** Add-on service hint (patient qualifies for a billable service). Not missing data. */
 /** price: baht from the HOSxP items set in admin; null/absent = no icode set */
 export type AlertOpportunity = { category: string; label: string; price?: number | null };
 
+/** Result of a HOSxP save check. Shown only on the top bar ("บันทึก" badge) and its large panel. */
 export type AlertState =
   | { kind: "checking"; hn: string | null; module: string }
   | { kind: "ok"; hn: string | null; module: string; opportunities: AlertOpportunity[] }
   | { kind: "missing"; hn: string | null; module: string; items: AlertItem[]; opportunities: AlertOpportunity[] }
   | { kind: "ambiguous"; hn: string | null; module: string; count: number }
   | { kind: "error"; message: string };
+/** the latest save check of the patient on screen, with the time of the save ("HH:mm") */
+export type SaveCheck = AlertState & { at: string };
 
 /** Which panel of the lab window is open; "rlu" is a dropdown anchored under its top bar badge. */
-export type Panel = "rlu" | "opps" | "ofc" | "authen" | "settings";
+export type Panel = "save" | "rlu" | "opps" | "ofc" | "authen" | "settings";
 /** The settings panel ("ตั้งค่าจุดบริการ"): the modules an admin switched on, and the one this machine uses. */
 export type ServicePoint =
   | { state: "loading" }
@@ -27,6 +30,8 @@ export type TopbarStatus = {
   panel: Panel | null;
   /** a newer agent version has been downloaded and can be installed (null = up to date) */
   update: string | null;
+  /** latest save check of this patient: the "บันทึก" badge, red and blinking when data is missing; null = none yet */
+  save: SaveCheck | null;
   /** RLU (Rational Lab Use) items in admin order; the badge blinks red when any item warns */
   rlu: { state: "loading" } | { state: "error" } | { state: "ok"; items: RluItem[] };
   /** NHSO Authen Code on the patient's latest visit ("YYYY-MM-DD"; null date = no visit) */
@@ -37,11 +42,4 @@ export type TopbarStatus = {
 /** top bar renderer -> main */
 export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "panel"; panel: Panel | null; /** badge left edge, CSS px from the bar's left (anchors the RLU dropdown) */ x?: number } | { type: "update" };
 /** What the panel window shows. Sent main -> lab renderer. */
-export type LabView = { hn: string | null; panel: Panel; settings: ServicePoint; rlu: TopbarStatus["rlu"]; opps: TopbarStatus["opps"]; authen: TopbarStatus["authen"]; /** demo screenshots only: this RLU item starts expanded */ demoExpand?: string };
-
-/** renderer -> main */
-export type AlertCommand =
-  | { type: "dismiss" }
-  | { type: "collapse" }
-  | { type: "expand" }
-  | { type: "resize"; width: number; height: number };
+export type LabView = { hn: string | null; panel: Panel; save: SaveCheck | null; settings: ServicePoint; rlu: TopbarStatus["rlu"]; opps: TopbarStatus["opps"]; authen: TopbarStatus["authen"]; /** demo screenshots only: this RLU item starts expanded */ demoExpand?: string };

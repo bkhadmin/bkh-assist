@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { LabView, Panel } from "../shared/alert-state";
 
 /** DIP, including the transparent shadow margin; rlu's height is only the first guess (the renderer reports its own). */
-const SIZES: Record<Panel, { width: number; height: number }> = { rlu: { width: 420, height: 240 }, opps: { width: 760, height: 560 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
+const SIZES: Record<Panel, { width: number; height: number }> = { save: { width: 760, height: 560 }, rlu: { width: 420, height: 240 }, opps: { width: 760, height: 560 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
 
 /** transparent margin left/right/below the dropdown card (lab.css body.drop padding) */
 const DROP_PAD = 14;

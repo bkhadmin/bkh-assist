@@ -16,6 +16,38 @@ const ERROR = "ดึงข้อมูลไม่ได้ (เชื่อม
 /** lab.css body.drop bottom padding: the shadow below the dropdown card */
 const DROP_PAD = 14;
 
+/** The latest save check, large: every missing field with its severity. */
+function Save({ save: c }: { save: LabView["save"] }) {
+  if (!c) return <Msg>ยังไม่ได้ตรวจการบันทึกของคนไข้นี้ (กดบันทึกใน HOSxP แล้วผลจะขึ้นที่แถบด้านบน)</Msg>;
+  if (c.kind === "checking") return <Msg>กำลังตรวจการบันทึก…</Msg>;
+  if (c.kind === "error") return <Msg>ตรวจการบันทึกไม่ได้: {c.message}</Msg>;
+  if (c.kind === "ambiguous") return <Msg>คนไข้มี {c.count} visit ที่อาจเป็นการบันทึกครั้งนี้ ตรวจอัตโนมัติไม่ได้ กรุณาตรวจใน HOSxP</Msg>;
+  if (c.kind === "ok")
+    return (
+      <p className="summary green big">
+        <span className="dot">✓</span>บันทึกครบถ้วน · {c.module} · {c.at} น.
+      </p>
+    );
+  const errors = c.items.filter((i) => i.severity === "error").length;
+  return (
+    <>
+      <p className={`summary ${errors ? "red" : "amber"} big`}>
+        <span className="dot">!</span>
+        {errors ? "ข้อมูลยังไม่ครบ" : "ควรบันทึกเพิ่ม"} {c.items.length} รายการ · {c.module} · บันทึกเมื่อ {c.at} น.
+      </p>
+      <ul className="opps missing">
+        {c.items.map((i, k) => (
+          <li key={k}>
+            <span className={`sev ${i.severity}`} aria-hidden="true" />
+            <span className="label">{i.label}</span>
+            <span className={`tag ${i.severity}`}>{i.severity === "error" ? "จำเป็น" : "ควรมี"}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 /** RLU dropdown (anchored under the top bar badge): every item with its light; a row expands to its last 3 results. */
 function Rlu({ v }: { v: LabView }) {
   const [open, setOpen] = useState<string[]>(() => (v.demoExpand ? [v.demoExpand] : []));
@@ -197,6 +229,7 @@ function Settings({ settings: st }: { settings: LabView["settings"] }) {
 }
 
 const PANELS: Record<Exclude<LabView["panel"], "rlu">, { title: string; foot: string }> = {
+  save: { title: "ผลตรวจการบันทึก", foot: "กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง ผลจะอัปเดตที่แถบด้านบน" },
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
   authen: { title: "Authen · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (visit_pttype.auth_code)" },
@@ -229,7 +262,9 @@ function Lab() {
         </button>
       </header>
       <div className="body">
-        {v.panel === "authen" ? (
+        {v.panel === "save" ? (
+          <Save save={v.save} />
+        ) : v.panel === "authen" ? (
           <Authen authen={v.authen} />
         ) : v.panel === "settings" ? (
           <Settings settings={v.settings} />

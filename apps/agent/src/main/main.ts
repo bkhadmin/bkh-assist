@@ -1,25 +1,21 @@
 /**
  * bkh_assist agent — Electron main process (background app: top bar + a tray icon to quit).
  *
- *   HOSxP "บันทึก"/F9  ->  SaveWatcher  ->  Checker (polls server)  ->  AlertWindow
+ *   HOSxP "บันทึก"/F9  ->  SaveWatcher  ->  Checker (polls server)  ->  top bar "บันทึก" badge (+ large panel)
  *
  * Flags:
- *   --demo             show sample alerts without HOSxP or server
- *   --step=<ms>        with --demo: how long each state stays on screen (default 4000)
- *   --shot-dir=<dir>   with --demo: save a PNG of each alert state, then quit
+ *   --demo --shot-dir=<dir>   save PNGs of the top bar and its panels with sample data (no HOSxP or server), then quit
  */
 import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AlertState, ServicePoint, TopbarStatus } from "../shared/alert-state";
-import { AlertWindow } from "./alert-window";
+import type { AlertState, SaveCheck, ServicePoint, TopbarStatus } from "../shared/alert-state";
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
 import { shownHn } from "./hosxp";
 import { fetchAuthen, fetchOpportunities, fetchRlu, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
-import { PatientWatch } from "./patient-watch";
 import { TopbarWindow } from "./topbar-window";
 import { trayIcon } from "./tray-icon";
 import { installUpdate, startUpdater } from "./updater";
@@ -35,7 +31,6 @@ const SHOT_DIR = args.find((a) => a.startsWith("--shot-dir="))?.slice("--shot-di
 if (!DEMO && !app.requestSingleInstanceLock()) app.quit();
 app.setAppUserModelId("bkh_assist.agent");
 
-let alert: AlertWindow;
 let tray: Tray | null = null; // module-level: a Tray that gets garbage-collected disappears
 
 // A packaged GUI app has no console, so log lines also go to %APPDATA%\bkh_assist agent\logs\agent.log
@@ -79,55 +74,20 @@ function toAlert(moduleLabel: string, ev: SaveEvent, outcome: CheckOutcome): Ale
 const DEMO_HN = "0001234";
 
 async function runDemo(cfg: AgentConfig) {
-  const m = cfg.moduleLabel;
-  const states: [string, AlertState, boolean?][] = [
-    ["1-checking", { kind: "checking", hn: DEMO_HN, module: m }],
-    ["2-ok", { kind: "ok", hn: DEMO_HN, module: m, opportunities: [] }],
-    [
-      "3-missing",
-      {
-        kind: "missing",
-        hn: DEMO_HN,
-        module: m,
-        items: [
-          { label: "ความดันโลหิต (BP)", severity: "error" },
-          { label: "อาการสำคัญ (CC)", severity: "error" },
-          { label: "ประวัติแพ้ยา", severity: "warning" },
-        ],
-        opportunities: [],
-      },
+  const save: SaveCheck = {
+    kind: "missing",
+    hn: DEMO_HN,
+    module: cfg.moduleLabel,
+    at: "09:41",
+    items: [
+      { label: "ความดันโลหิต (BP)", severity: "error" },
+      { label: "อาการสำคัญ (CC)", severity: "error" },
+      { label: "ประวัติแพ้ยา", severity: "warning" },
     ],
-    ["4-collapsed", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ความดันโลหิต (BP)", severity: "error" }, { label: "อาการสำคัญ (CC)", severity: "error" }], opportunities: [] }, true],
-    ["5-warning-only", { kind: "missing", hn: DEMO_HN, module: m, items: [{ label: "ประวัติแพ้ยา", severity: "warning" }], opportunities: [] }],
-    ["6-ambiguous", { kind: "ambiguous", hn: null, module: m, count: 3 }],
-    ["7-error", { kind: "error", message: "เชื่อมต่อ server ไม่ได้" }],
-    [
-      "8-ok-opportunities",
-      {
-        kind: "ok",
-        hn: DEMO_HN,
-        module: m,
-        opportunities: [
-          { category: "PP", label: "คัดกรองมะเร็งปากมดลูก" },
-          { category: "PP", label: "ตรวจคัดกรองเบาหวานและความดันโลหิตสูงในกลุ่มเสี่ยง" },
-        ],
-      },
-    ],
-    [
-      "9-missing-opportunities",
-      {
-        kind: "missing",
-        hn: DEMO_HN,
-        module: m,
-        items: [
-          { label: "ความดันโลหิต (BP)", severity: "error" },
-          { label: "ประวัติแพ้ยา", severity: "warning" },
-        ],
-        opportunities: [{ category: "PP", label: "คัดกรองมะเร็งปากมดลูก" }],
-      },
-    ],
-  ];
-  if (SHOT_DIR) {
+    opportunities: [],
+  };
+  if (!SHOT_DIR) return app.quit();
+  {
     mkdirSync(SHOT_DIR, { recursive: true });
     const bar = new TopbarWindow({ dock: false, offscreen: true });
     const rlu = {
@@ -151,33 +111,30 @@ async function runDemo(cfg: AgentConfig) {
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "OFC" };
     const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
-    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", authen: noAuthen, rlu, opps });
+    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", save, authen: noAuthen, rlu, opps });
     await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
-    lab.open({ hn: DEMO_HN, panel: "rlu", settings: demoSettings, rlu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
+    lab.open({ hn: DEMO_HN, panel: "rlu", save, settings: demoSettings, rlu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
     await new Promise((r) => setTimeout(r, 700));
     writeFileSync(join(SHOT_DIR, "0-rlu.png"), (await lab.capture()).toPNG());
-    lab.open({ hn: DEMO_HN, panel: "opps", settings: demoSettings, rlu, opps, authen: noAuthen }, { offscreen: true });
+    lab.open({ hn: DEMO_HN, panel: "opps", save, settings: demoSettings, rlu, opps, authen: noAuthen }, { offscreen: true });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-opps.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "authen", settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "authen", save, settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "settings", settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "ofc", settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "ofc", save, settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-ofc.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "save", save, settings: demoSettings, rlu, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-save.png"), (await lab.capture()).toPNG());
     lab.close();
     bar.destroy();
-  }
-  for (const [name, state, collapsed] of states) {
-    await alert.show(state, { collapsed });
-    const stepMs = Number(args.find((a) => a.startsWith("--step="))?.slice(7)) || 4000;
-    await new Promise((r) => setTimeout(r, SHOT_DIR ? 700 : stepMs));
-    if (SHOT_DIR) writeFileSync(join(SHOT_DIR, `${name}.png`), (await alert.capture()).toPNG());
   }
   app.quit();
 }
@@ -185,8 +142,6 @@ async function runDemo(cfg: AgentConfig) {
 app.whenReady().then(async () => {
   const { config: cfg, source } = loadConfig(app.getAppPath());
   log(`config from ${source}; server=${cfg.serverUrl} module=${cfg.module} machine=${cfg.machine}`);
-  alert = new AlertWindow({ offscreen: DEMO && !!SHOT_DIR });
-
   if (DEMO) return runDemo(cfg);
 
   const checker = new Checker(cfg);
@@ -196,9 +151,9 @@ app.whenReady().then(async () => {
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
   // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN).
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
-  let bar: TopbarStatus = { hn: null, panel: null, update: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
+  let bar: TopbarStatus = { hn: null, panel: null, update: null, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
-  const view = () => ({ hn: bar.hn, panel: bar.panel!, settings, rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
     settings = next;
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());
@@ -271,7 +226,7 @@ app.whenReady().then(async () => {
     }
     if (hn === bar.hn) return;
     if (bar.panel !== "settings") lab.close(); // the open results belonged to the previous patient
-    setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
+    setBar({ hn, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
     if (!hn) return;
     void fetchAuthen(cfg, hn).then((a) => {
       if (bar.hn !== hn) return;
@@ -291,35 +246,30 @@ app.whenReady().then(async () => {
   setInterval(() => void modules.refresh(), REFRESH_MS);
 
   const watcher = new SaveWatcher();
-  const patientWatch = new PatientWatch();
+  // Save results show only on the top bar: the "บันทึก" badge (click = large panel). A result stays while its patient
+  // is on screen; the HN poll above clears it when the user moves to another patient.
+  const showSave = (ev: SaveEvent, state: AlertState | null) => {
+    if (ev.hn && bar.hn && ev.hn !== bar.hn) return; // a late result for a patient no longer on screen
+    setBar({ save: state && { ...state, at: ev.savedAt.toTimeString().slice(0, 5) } });
+  };
   watcher.on("save", async (ev) => {
-    patientWatch.stop(); // the new save takes over the alert
     const mod = modules.pick(ev.form);
     log(`save trigger=${ev.trigger} form=${ev.form} hn=${ev.hn ? "yes" : "no"} module=${mod?.code ?? "(none: not checked)"}`);
     if (!mod) return; // this machine does not check this HOSxP screen
-    const anchor = { x: ev.bounds.left, y: ev.bounds.top, width: ev.bounds.right - ev.bounds.left, height: ev.bounds.bottom - ev.bounds.top };
-    await alert.show({ kind: "checking", hn: ev.hn, module: mod.label }, { anchor });
+    showSave(ev, { kind: "checking", hn: ev.hn, module: mod.label });
     const outcome = await checker.check({ module: mod.code, hn: ev.hn, savedAt: ev.savedAt });
-    if (outcome.kind === "cancelled") return; // a newer save took over the alert
+    if (outcome.kind === "cancelled") return; // a newer save took over
     if (outcome.kind === "denied") {
       // the admin changed this machine's modules since our last refresh: pick up the new list
       await modules.refresh();
     }
     const state = toAlert(mod.label, ev, outcome);
     log(`check result=${outcome.kind === "result" ? outcome.response.status : outcome.kind}`);
-    if (!state) return alert.hide();
-    await alert.show(state, { anchor });
-    // withdraw a lingering alert once the user has moved on to another patient
-    if ((state.kind === "missing" || state.kind === "ambiguous") && ev.hn) {
-      patientWatch.start(ev.formHwnd, ev.hn, () => alert.isVisible(), (nowHn) => {
-        log(`patient changed (${nowHn ? "other HN" : "screen closed"}); alert withdrawn`);
-        alert.hide();
-      });
-    }
+    showSave(ev, state);
   });
   watcher.start();
   app.on("before-quit", () => watcher.stop());
 });
 
-// background app: keep running when the (hidden) alert window is the only window
+// background app: keep running when no panel window is open
 app.on("window-all-closed", () => {});

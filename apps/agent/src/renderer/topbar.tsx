@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Panel, TopbarCommand, TopbarStatus } from "../shared/alert-state";
+import type { Panel, SaveCheck, TopbarCommand, TopbarStatus } from "../shared/alert-state";
 import noviceUrl from "../../resources/novice.svg";
 import { thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
@@ -47,8 +47,27 @@ function AuthenBadge({ authen: a, active, onClick }: { authen: TopbarStatus["aut
   );
 }
 
+/** Latest HOSxP save check: red blinking "ไม่ครบ n" / amber "ควรเพิ่ม n" / green "บันทึกครบ"; click opens the large panel. */
+function SaveBadge({ save: c, active, onClick }: { save: SaveCheck; active: boolean; onClick: () => void }) {
+  const errors = c.kind === "missing" ? c.items.filter((i) => i.severity === "error").length : 0;
+  const [tone, mark, text, title] =
+    c.kind === "checking" ? ["none", "…", "กำลังตรวจ", "กำลังตรวจการบันทึก"]
+    : c.kind === "ok" ? ["green", "✓", "บันทึกครบ", `บันทึกครบถ้วน (${c.at} น.)`]
+    : c.kind === "missing" && errors ? ["red", "!", `ไม่ครบ ${c.items.length}`, `ข้อมูลยังไม่ครบ ${c.items.length} รายการ (${c.at} น.)`]
+    : c.kind === "missing" ? ["amber", "!", `ควรเพิ่ม ${c.items.length}`, `ควรบันทึกเพิ่ม ${c.items.length} รายการ (${c.at} น.)`]
+    : c.kind === "ambiguous" ? ["amber", "?", "ตรวจไม่ได้", "มีหลาย visit ตรวจอัตโนมัติไม่ได้"]
+    : ["none", "!", "ตรวจไม่ได้", "ตรวจการบันทึกไม่ได้"];
+  return (
+    <button className={`save ${tone} ${active ? "active" : ""}`} title={`${title} · คลิกดูรายละเอียด`} aria-expanded={active} onClick={onClick}>
+      {/* key: every new check restarts the blink (red 10×; see topbar.css) */}
+      <span key={`${c.at}-${c.kind}`} className="mark" aria-hidden="true">{mark}</span>
+      {text}
+    </button>
+  );
+}
+
 function Topbar() {
-  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
+  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     window.bkhTop.onStatus(setS);
@@ -94,6 +113,7 @@ function Topbar() {
   return (
     <div className="bar">
       {hnText}
+      {s.save && <SaveBadge save={s.save} active={s.panel === "save"} onClick={() => togglePanel("save")} />}
       {s.hn && <AuthenBadge authen={s.authen} active={s.panel === "authen"} onClick={() => togglePanel("authen")} />}
       {s.hn && (
         <button

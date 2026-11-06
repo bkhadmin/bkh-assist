@@ -102,3 +102,20 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 
 /* patient name after the HN */
 .hn .name { margin-left: 8px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; display: inline-block; vertical-align: bottom; }
+
+/* latest save check (right after the HN): the only place save results show; click opens the large panel */
+.save {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 10px 0 4px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; background: rgba(0, 0, 0, 0.18);
+}
+.save:hover, .save.active { background: rgba(0, 0, 0, 0.32); }
+.save .mark {
+  width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; font-weight: 800; color: #0f2a2b; background: #9aa5ad;
+}
+.save.green .mark { background: #3ddc84; }
+.save.amber .mark { background: #ffc233; }
+.save.red { background: #d93a2b; }
+.save.red:hover, .save.red.active { background: #b92e21; }
+.save.red .mark { background: #ffffff; color: #d93a2b; animation: blink 0.6s ease-in-out 10; }

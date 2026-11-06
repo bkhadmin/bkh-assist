@@ -155,3 +155,13 @@ body.drop { padding: 0 14px 14px; }
 .rlu-results .value { font-size: 14px; }
 .lab-name { margin-left: 8px; font-size: 11.5px; color: var(--muted); }
 .rlu-none { margin: 0 14px 8px 33px; color: var(--muted); font-size: 13px; }
+
+/* save check panel (large) */
+.summary.big { font-size: 16px; padding: 12px 16px; }
+.summary.amber { color: #8a5a00; background: #fff3d6; }
+.opps.missing { padding-top: 10px; gap: 6px; }
+.opps.missing li { align-items: center; padding: 12px 14px; font-size: 16px; }
+.opps.missing .sev { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+.opps.missing .sev.warning { background: #c98a00; }
+.opps.missing .tag { flex: none; font-size: 12.5px; font-weight: 700; padding: 2px 10px; border-radius: 999px; color: var(--red); background: var(--red-soft); }
+.opps.missing .tag.warning { color: #8a5a00; background: #fff3d6; }
