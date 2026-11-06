@@ -42,7 +42,9 @@ export class AlertWindow {
     });
     this.win.setAlwaysOnTop(true, "screen-saver");
     this.win.setMenu(null);
-    this.ready = this.win.loadFile(join(__dirname, "renderer", "alert.html"));
+    // `electron-vite dev` serves the renderer with HMR; a build loads the bundled file
+    const devUrl = process.env.ELECTRON_RENDERER_URL;
+    this.ready = devUrl ? this.win.loadURL(`${devUrl}/alert.html`) : this.win.loadFile(join(__dirname, "renderer", "alert.html"));
 
     ipcMain.on("alert:cmd", (e, cmd: AlertCommand) => {
       if (e.sender !== this.win.webContents) return;

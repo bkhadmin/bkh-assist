@@ -34,7 +34,7 @@ export class ModuleConfig {
     return this.fromServer ? "server" : "local";
   }
 
-  /** Modules shown in the tray menu. */
+  /** Modules this machine checks. */
   list(): AgentModule[] {
     if (!this.fromServer) return [{ code: this.cfg.module, label: this.cfg.moduleLabel, hosxpForm: null }];
     return this.fromServer.active ? this.fromServer.modules : [];

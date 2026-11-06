@@ -68,3 +68,18 @@ export function describeScreen(saveButton: Hwnd): ScreenInfo | null {
 export function currentHn(form: Hwnd): string | null {
   return w.isAlive(form) && w.isVisible(form) ? readHn(form) : null;
 }
+
+/**
+ * HN shown in HOSxP right now (for the top bar): the foreground HOSxP window first, else any visible one.
+ * Polled about once a second; one EnumWindows + one EnumChildWindows per HOSxP window.
+ */
+export function shownHn(): string | null {
+  const hosxp = w.topWindows().filter(isHosxpWindow);
+  const fg = w.rootOf(w.foregroundWindow());
+  hosxp.sort((a, b) => Number(w.sameHwnd(b, fg)) - Number(w.sameHwnd(a, fg)));
+  for (const win of hosxp) {
+    const hn = readHn(win);
+    if (hn) return hn;
+  }
+  return null;
+}

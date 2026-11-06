@@ -94,5 +94,23 @@ export const AgentConfigResponseSchema = z.object({
 });
 export type AgentConfigResponse = z.infer<typeof AgentConfigResponseSchema>;
 
+/**
+ * `GET /api/agent/hba1c?hn=<hn>&machine=<hostname>`: the patient's last 3 reported HbA1c results, newest first.
+ * Shown in the agent's top bar. Only date and value, never names/CID.
+ */
+export const HbA1cResultSchema = z.object({
+  /** order date, "YYYY-MM-DD" (HIS local date) */
+  date: z.string(),
+  /** as reported by the lab, e.g. "6.8" */
+  value: z.string(),
+});
+export const HbA1cResponseSchema = z.object({
+  hn: z.string(),
+  results: z.array(HbA1cResultSchema),
+});
+export type HbA1cResponse = z.infer<typeof HbA1cResponseSchema>;
+/** Top bar light: green when the latest HbA1c was ordered at most this many days ago, red when older. */
+export const HBA1C_MAX_AGE_DAYS = 90;
+
 /** Header carrying the agent key. */
 export const AGENT_KEY_HEADER = "x-agent-key";

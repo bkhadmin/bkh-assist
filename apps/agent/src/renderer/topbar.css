@@ -1,0 +1,53 @@
+* { box-sizing: border-box; margin: 0; }
+html, body, #app { height: 100%; overflow: hidden; }
+body {
+  background: transparent; /* the window is transparent; .bar / .tab paint themselves */
+  color: #ffffff;
+  font: 14px/1 "Leelawadee UI", "Segoe UI", Tahoma, sans-serif;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
+
+.bar { height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 4px 0 12px; white-space: nowrap; background: #0f6e73; }
+.grow { flex: 1; }
+.hn { color: rgba(255, 255, 255, 0.78); }
+.hn b { color: #ffffff; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+
+.icon { display: grid; place-items: center; width: 28px; height: 24px; border-radius: 6px; color: rgba(255, 255, 255, 0.78); }
+.icon:hover { background: rgba(0, 0, 0, 0.22); color: #ffffff; }
+
+/* collapsed: a small tab hanging from the top edge */
+.tab {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 13px; white-space: nowrap;
+  background: #0f6e73; border-radius: 0 0 10px 10px;
+  opacity: 0.5; /* stays out of the way of the window title below; solid again on hover */
+  transition: opacity 120ms;
+}
+.tab-label { font-weight: 600; letter-spacing: 0.2px; }
+.tab:hover, .tab:focus-visible { opacity: 1; background: #0b5a5e; }
+@media (prefers-reduced-motion: reduce) { .tab { transition: none; } }
+
+/* HbA1c button with a traffic light */
+.lab {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; background: rgba(0, 0, 0, 0.18);
+}
+.lab:hover, .lab.active { background: rgba(0, 0, 0, 0.32); }
+.light { width: 10px; height: 10px; border-radius: 50%; background: #9aa5ad; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
+.light.green { background: #3ddc84; animation: blink 0.6s ease-in-out 5; }
+.light.red { background: #ff5a4a; animation: blink 0.6s ease-in-out 10; }
+@keyframes blink { 50% { opacity: 0.15; } }
+.tab-icon { flex: none; display: block; }
+
+/* a downloaded update, waiting for the user (left of the collapse button) */
+.update {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px; margin-right: 4px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; color: #0b3b3d; background: #ffd27a;
+}
+.update:hover { background: #ffe1a3; }

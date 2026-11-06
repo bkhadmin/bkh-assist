@@ -24,6 +24,7 @@ const GetClassNameW = user32.func("int __stdcall GetClassNameW(void *hwnd, _Out_
 const GetWindowRect = user32.func("bool __stdcall GetWindowRect(void *hwnd, _Out_ RECT *rect)");
 const GetWindowThreadProcessId = user32.func("uint32_t __stdcall GetWindowThreadProcessId(void *hwnd, _Out_ uint32_t *pid)");
 const EnumChildWindows = user32.func("bool __stdcall EnumChildWindows(void *parent, EnumProc *cb, intptr_t lparam)");
+const EnumWindows = user32.func("bool __stdcall EnumWindows(EnumProc *cb, intptr_t lparam)");
 const SendMessageTimeoutW = user32.func(
   "intptr_t __stdcall SendMessageTimeoutW(void *hwnd, uint32_t msg, uintptr_t wparam, void *lparam, uint32_t flags, uint32_t timeout, _Out_ uintptr_t *result)",
 );
@@ -82,6 +83,13 @@ export function rectOf(h: Hwnd): Rect {
 export function children(parent: Hwnd): Hwnd[] {
   const list: Hwnd[] = [];
   EnumChildWindows(parent, (h: Hwnd) => (list.push(h), true), 0);
+  return list;
+}
+
+/** Visible top-level windows of all processes. */
+export function topWindows(): Hwnd[] {
+  const list: Hwnd[] = [];
+  EnumWindows((h: Hwnd) => (IsWindowVisible(h) && list.push(h), true), 0);
   return list;
 }
 

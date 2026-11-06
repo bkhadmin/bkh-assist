@@ -10,6 +10,21 @@ export type AlertState =
   | { kind: "ambiguous"; hn: string | null; module: string; count: number }
   | { kind: "error"; message: string };
 
+/** What the top bar shows: the HN HOSxP displays right now (null = none) and its HbA1c. Never names/CID. */
+export type TopbarStatus = {
+  hn: string | null;
+  /** the HbA1c window is open (the button shows as pressed) */
+  labOpen: boolean;
+  /** a newer agent version has been downloaded and can be installed (null = up to date) */
+  update: string | null;
+  /** last 3 results, newest first ("YYYY-MM-DD", value as reported) */
+  hba1c: { state: "loading" } | { state: "error" } | { state: "ok"; results: { date: string; value: string }[] };
+};
+/** top bar renderer -> main */
+export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "lab"; open: boolean } | { type: "update" };
+/** What the HbA1c window shows. Sent main -> lab renderer. */
+export type LabView = { hn: string; hba1c: TopbarStatus["hba1c"] };
+
 /** renderer -> main */
 export type AlertCommand =
   | { type: "dismiss" }

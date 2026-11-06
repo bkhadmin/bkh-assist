@@ -5,22 +5,31 @@
   "description": "bkh_assist Windows agent: watches HOSxP XE saves and alerts on missing data",
   "main": "dist/main.js",
   "scripts": {
-    "build": "node build.mjs",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
     "start": "npm run build && electron .",
     "demo": "npm run build && electron . --demo",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dist": "node pack.mjs"
+    "dist": "node pack.mjs",
+    "release": "node pack.mjs --publish"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
     "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
-    "esbuild": "^0.28.2",
-    "typescript": "^5.9.3"
+    "electron-vite": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6"
   },
   "dependencies": {
     "@bkh/shared": "^0.1.0",
+    "electron-updater": "^6.8.11",
     "koffi": "^3.3.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "uiohook-napi": "^1.5.5"
   }
 }

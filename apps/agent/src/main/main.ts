@@ -1,5 +1,5 @@
 /**
- * bkh_assist agent — Electron main process (tray app, no main window).
+ * bkh_assist agent — Electron main process (background app: top bar + a tray icon to quit).
  *
  *   HOSxP "บันทึก"/F9  ->  SaveWatcher  ->  Checker (polls server)  ->  AlertWindow
  *
@@ -8,20 +8,26 @@
  *   --step=<ms>        with --demo: how long each state stays on screen (default 4000)
  *   --shot-dir=<dir>   with --demo: save a PNG of each alert state, then quit
  */
-import { app, Menu, shell, Tray } from "electron";
+import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AlertState } from "../shared/alert-state";
+import type { AlertState, TopbarStatus } from "../shared/alert-state";
 import { AlertWindow } from "./alert-window";
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
+import { shownHn } from "./hosxp";
+import { fetchHbA1c } from "./lab";
+import { LabWindow } from "./lab-window";
 import { PatientWatch } from "./patient-watch";
-import { trayIcon, type TrayTone } from "./tray-icon";
+import { TopbarWindow } from "./topbar-window";
+import { trayIcon } from "./tray-icon";
+import { installUpdate, startUpdater } from "./updater";
 import { SaveWatcher, type SaveEvent } from "./watcher";
 import * as w from "./win32";
 
 const args = process.argv.slice(1);
+const HN_POLL_MS = 1000;
 const DEMO = args.includes("--demo");
 const SHOT_DIR = args.find((a) => a.startsWith("--shot-dir="))?.slice("--shot-dir=".length);
 
@@ -29,11 +35,11 @@ const SHOT_DIR = args.find((a) => a.startsWith("--shot-dir="))?.slice("--shot-di
 if (!DEMO && !app.requestSingleInstanceLock()) app.quit();
 app.setAppUserModelId("bkh_assist.agent");
 
-let tray: Tray | null = null;
 let alert: AlertWindow;
+let tray: Tray | null = null; // module-level: a Tray that gets garbage-collected disappears
 
 // A packaged GUI app has no console, so log lines also go to %APPDATA%\bkh_assist agent\logs\agent.log
-// (tray: "เปิดโฟลเดอร์ log"). One rotation at 1 MB keeps it small. Never log names/CID; HN only as yes/no.
+// One rotation at 1 MB keeps it small. Never log names/CID; HN only as yes/no.
 const LOG_MAX_BYTES = 1024 * 1024;
 let logFile: string | null = null;
 function log(...parts: unknown[]) {
@@ -67,49 +73,6 @@ function toAlert(moduleLabel: string, ev: SaveEvent, outcome: CheckOutcome): Ale
       opportunities,
     };
   return null;
-}
-
-function buildTray(cfg: AgentConfig, modules: ModuleConfig, status: { server: boolean; elevated: boolean }, onRefresh: () => void) {
-  const list = modules.list();
-  const tone: TrayTone = !status.server ? "off" : !status.elevated || list.length === 0 ? "warn" : "ok";
-  const tip = !status.elevated
-    ? "bkh_assist — ต้องรันแบบ Administrator จึงจะเห็นการบันทึกใน HOSxP"
-    : !status.server
-      ? "bkh_assist — เชื่อมต่อ server ไม่ได้"
-      : list.length === 0
-        ? "bkh_assist — เครื่องนี้ยังไม่ได้เปิด module (ตั้งที่หน้า admin)"
-        : `bkh_assist — เฝ้าตรวจ ${list.map((m) => m.label).join(", ")}`;
-  const moduleItems = list.length
-    ? list.map((m) => ({ label: `ตรวจ: ${m.label} (${m.code})`, enabled: false }))
-    : [{ label: modules.machineActive ? "ยังไม่ได้เปิด module ให้เครื่องนี้" : "admin ปิดการใช้งานเครื่องนี้", enabled: false }];
-  tray ??= new Tray(trayIcon(tone));
-  tray.setImage(trayIcon(tone));
-  tray.setToolTip(tip);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "bkh_assist", enabled: false },
-      { label: `เครื่อง: ${cfg.machine}`, enabled: false },
-      ...moduleItems,
-      { label: `server: ${status.server ? "เชื่อมต่อแล้ว" : "เชื่อมต่อไม่ได้"} · ตั้งค่าจาก ${modules.source === "server" ? "server" : "ไฟล์ในเครื่อง"}`, enabled: false },
-      ...(!status.elevated ? [{ label: "⚠ ไม่ได้รันแบบ Administrator", enabled: false }] : []),
-      { type: "separator" },
-      { label: "รับการตั้งค่าใหม่จาก server", click: onRefresh },
-      {
-        label: "ทดสอบการแจ้งเตือน",
-        click: () =>
-          alert.show({
-            kind: "missing",
-            hn: null,
-            module: list[0]?.label ?? cfg.moduleLabel,
-            items: [{ label: "ตัวอย่าง: ความดันโลหิต (BP)", severity: "error" }],
-            opportunities: [],
-          }),
-      },
-      { label: "เปิดโฟลเดอร์ log", click: () => shell.openPath(app.getPath("logs")) },
-      { type: "separator" },
-      { label: "ปิด bkh_assist", click: () => app.quit() },
-    ]),
-  );
 }
 
 /** Made-up HN for the demo; never put a real patient number in source. */
@@ -164,7 +127,20 @@ async function runDemo(cfg: AgentConfig) {
       },
     ],
   ];
-  if (SHOT_DIR) mkdirSync(SHOT_DIR, { recursive: true });
+  if (SHOT_DIR) {
+    mkdirSync(SHOT_DIR, { recursive: true });
+    const bar = new TopbarWindow({ dock: false, offscreen: true });
+    const hba1c = { state: "ok" as const, results: [{ date: "2026-11-05", value: "8.4" }, { date: "2026-04-16", value: "10.1" }, { date: "2025-11-12", value: "6.4" }] };
+    bar.update({ hn: DEMO_HN, labOpen: true, update: "0.2.0", hba1c });
+    await new Promise((r) => setTimeout(r, 700));
+    writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
+    const lab = new LabWindow(() => {});
+    lab.open({ hn: DEMO_HN, hba1c }, { offscreen: true });
+    await new Promise((r) => setTimeout(r, 700));
+    writeFileSync(join(SHOT_DIR, "0-hba1c.png"), (await lab.capture()).toPNG());
+    lab.close();
+    bar.destroy();
+  }
   for (const [name, state, collapsed] of states) {
     await alert.show(state, { collapsed });
     const stepMs = Number(args.find((a) => a.startsWith("--step="))?.slice(7)) || 4000;
@@ -183,35 +159,62 @@ app.whenReady().then(async () => {
 
   const checker = new Checker(cfg);
   const modules = new ModuleConfig(cfg);
-  const status = { server: await checker.health(), elevated: w.isElevated() };
+  if (!cfg.agentKey) log("WARNING: agentKey is empty; the server will reject checks");
+
+  // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
+  // On a new HN it also fetches that patient's last HbA1c results (once per HN).
+  // The HbA1c button opens a separate, centred window with the results.
+  let bar: TopbarStatus = { hn: null, labOpen: false, update: null, hba1c: { state: "loading" } };
+  const setBar = (patch: Partial<TopbarStatus>) => {
+    bar = { ...bar, ...patch };
+    topbar.update(bar);
+    if (lab.isOpen() && bar.hn) lab.update({ hn: bar.hn, hba1c: bar.hba1c });
+  };
+  const lab = new LabWindow(() => setBar({ labOpen: false }));
+  const topbar = new TopbarWindow({
+    onLab: (open) => {
+      if (open && bar.hn) {
+        lab.open({ hn: bar.hn, hba1c: bar.hba1c });
+        setBar({ labOpen: true });
+      } else lab.close();
+    },
+    onUpdate: () => {
+      log(`installing update ${bar.update}`);
+      installUpdate();
+    },
+  });
+  startUpdater(log, (version) => {
+    log(`update ${version} downloaded`);
+    setBar({ update: version });
+  });
+  app.on("will-quit", () => topbar.destroy()); // give the reserved screen strip back to Windows
+
+  // Tray icon: only a way to quit (right click). Everything else lives in the top bar.
+  tray = new Tray(trayIcon());
+  tray.setToolTip("เตือนสติ (bkh_assist)");
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: "ปิดเตือนสติ (bkh_assist)", click: () => app.quit() }]));
+  setInterval(() => {
+    let hn: string | null;
+    try {
+      hn = shownHn();
+    } catch (err) {
+      return log("topbar HN read failed", err);
+    }
+    if (hn === bar.hn) return;
+    lab.close(); // the open results belonged to the previous patient
+    setBar({ hn, hba1c: { state: "loading" } });
+    if (!hn) return;
+    void fetchHbA1c(cfg, hn).then((results) => {
+      if (bar.hn !== hn) return; // the user already moved to another patient
+      setBar({ hba1c: results ? { state: "ok", results } : { state: "error" } });
+    });
+  }, HN_POLL_MS);
+
+  if (!w.isElevated()) log("WARNING: not running as Administrator; saves in an elevated HOSxP are not seen");
+  if (!(await checker.health())) log("WARNING: server not reachable at start");
   await modules.refresh();
   log(`modules from ${modules.source}: ${modules.list().map((m) => m.code).join(", ") || "(none)"}`);
-  // Tray "รับการตั้งค่าใหม่จาก server": apply a module change from the admin page now instead of in ≤5 minutes.
-  const refreshNow = async () => {
-    const ok = await modules.refresh();
-    status.server = ok || (await checker.health());
-    redrawTray();
-    const list = modules.list();
-    const content = !ok
-      ? "เชื่อมต่อ server ไม่ได้ ยังใช้การตั้งค่าเดิม"
-      : list.length
-        ? `ตรวจ: ${list.map((m) => m.label).join(", ")}`
-        : modules.machineActive
-          ? "เครื่องนี้ยังไม่ได้เปิด module (ตั้งที่หน้า admin › เครื่องที่ติดตั้ง agent)"
-          : "admin ปิดการใช้งานเครื่องนี้";
-    log(`manual refresh: ${ok ? "ok" : "failed"}; modules=${list.map((m) => m.code).join(", ") || "(none)"}`);
-    tray?.displayBalloon({ title: "bkh_assist", content, iconType: ok ? "info" : "warning" });
-  };
-  const redrawTray = () => buildTray(cfg, modules, status, () => void refreshNow());
-  redrawTray();
-  if (!cfg.agentKey) log("WARNING: agentKey is empty; the server will reject checks");
-  setInterval(async () => {
-    status.server = await checker.health();
-    redrawTray();
-  }, 60_000);
-  setInterval(async () => {
-    if (await modules.refresh()) redrawTray();
-  }, REFRESH_MS);
+  setInterval(() => void modules.refresh(), REFRESH_MS);
 
   const watcher = new SaveWatcher();
   const patientWatch = new PatientWatch();
@@ -226,7 +229,7 @@ app.whenReady().then(async () => {
     if (outcome.kind === "cancelled") return; // a newer save took over the alert
     if (outcome.kind === "denied") {
       // the admin changed this machine's modules since our last refresh: pick up the new list
-      if (await modules.refresh()) redrawTray();
+      await modules.refresh();
     }
     const state = toAlert(mod.label, ev, outcome);
     log(`check result=${outcome.kind === "result" ? outcome.response.status : outcome.kind}`);
@@ -244,5 +247,5 @@ app.whenReady().then(async () => {
   app.on("before-quit", () => watcher.stop());
 });
 
-// tray app: keep running when the (hidden) alert window is the only window
+// background app: keep running when the (hidden) alert window is the only window
 app.on("window-all-closed", () => {});
