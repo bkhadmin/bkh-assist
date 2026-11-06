@@ -95,7 +95,7 @@ export async function withRuleSettings(mod: Module): Promise<Module> {
 export async function moduleOpportunities(moduleCode: string): Promise<OpportunityDef[]> {
   try {
     const rows = await assistQuery<OpportunityDef>(
-      `SELECT o.code, o.category, o.label, o.conditions
+      `SELECT o.code, o.category, o.label, o.conditions, o.icodes
        FROM modules m
        JOIN module_opportunities mo ON mo.module_code = m.code
        JOIN opportunities o ON o.code = mo.opportunity_code AND o.is_active

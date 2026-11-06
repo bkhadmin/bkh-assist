@@ -46,17 +46,18 @@ export const SOURCES: DataSource[] = [
   {
     code: "patient",
     label: "ข้อมูลผู้ป่วย",
-    description: "อายุ ณ วันที่มารับบริการ เพศ สัญชาติ สิทธิ",
+    description: "อายุ ณ วันที่มารับบริการ เพศ สัญชาติ สิทธิ (รหัสสิทธิ และกลุ่มสิทธิ hipdata เช่น UCS, OFC, SSS, LGO)",
     columns: [
       { name: "age_y", label: "อายุ (ปี)", type: "number" },
       { name: "age_m", label: "อายุ (เดือน)", type: "number" },
       { name: "sex", label: "เพศ (1 = ชาย, 2 = หญิง)", type: "text" },
       { name: "nationality", label: "สัญชาติ (99 = ไทย)", type: "text" },
       { name: "pttype", label: "รหัสสิทธิของ visit", type: "text" },
+      { name: "hipdata", label: "กลุ่มสิทธิ hipdata (UCS, OFC, SSS, LGO …)", type: "text" },
     ],
     build: (_codes, vn) => ({
       sql: `SELECT TIMESTAMPDIFF(YEAR, p.birthday, o.vstdate) AS age_y, TIMESTAMPDIFF(MONTH, p.birthday, o.vstdate) AS age_m,
-              p.sex, p.nationality, o.pttype
+              p.sex, p.nationality, o.pttype, (SELECT t.hipdata_code FROM pttype t WHERE t.pttype = o.pttype) AS hipdata
             FROM ovst o JOIN patient p ON p.hn = o.hn WHERE o.vn = ?`,
       params: [vn],
     }),

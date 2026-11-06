@@ -17,4 +17,8 @@ contextBridge.exposeInMainWorld("bkhLab", {
   close() {
     ipcRenderer.send("lab:close");
   },
+  /** settings panel: make this module the machine's service point */
+  setServicePoint(code: string) {
+    ipcRenderer.send("lab:service-point", code);
+  },
 });

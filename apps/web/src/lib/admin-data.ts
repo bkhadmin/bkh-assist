@@ -158,6 +158,8 @@ export type OpportunityRow = {
   conditions: Condition[];
   isActive: boolean;
   sortOrder: number;
+  /** HOSxP items billed for it (price shown by the agent) */
+  icodes: string[];
   /** checks in the last 7 days that showed this opportunity */
   matches7d: number;
   /** modules that have it ticked (whether or not their add-on switch is on) */
@@ -174,10 +176,11 @@ export async function listOpportunities(): Promise<OpportunityRow[]> {
     conditions: Condition[];
     is_active: boolean;
     sort_order: number;
+    icodes: string[];
     matches7d: string | null;
     modules: string;
   }>(
-    `SELECT o.code, o.category, o.group_name, o.label, o.description, o.conditions, o.is_active, o.sort_order, h.n AS matches7d,
+    `SELECT o.code, o.category, o.group_name, o.label, o.description, o.conditions, o.is_active, o.sort_order, o.icodes, h.n AS matches7d,
             (SELECT count(*) FROM module_opportunities mo WHERE mo.opportunity_code = o.code) AS modules
      FROM opportunities o
      LEFT JOIN (SELECT x AS code, count(*) AS n FROM check_logs c, jsonb_array_elements_text(c.opportunities) x
@@ -193,6 +196,7 @@ export async function listOpportunities(): Promise<OpportunityRow[]> {
     conditions: r.conditions,
     isActive: r.is_active,
     sortOrder: r.sort_order,
+    icodes: r.icodes,
     matches7d: Number(r.matches7d ?? 0),
     modules: Number(r.modules),
   }));

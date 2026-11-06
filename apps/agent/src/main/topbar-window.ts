@@ -8,7 +8,7 @@
  */
 import { BrowserWindow, ipcMain, screen } from "electron";
 import { join } from "node:path";
-import type { TopbarCommand, TopbarStatus } from "../shared/alert-state";
+import type { Panel, TopbarCommand, TopbarStatus } from "../shared/alert-state";
 import { ABN_POSCHANGED, APPBAR_CALLBACK, AppBar } from "./appbar";
 
 export const TOPBAR_HEIGHT = 30; // DIP
@@ -22,7 +22,7 @@ export class TopbarWindow {
   private collapsed = false;
 
   /** dock = false: render only (demo screenshots), do not reserve screen space. */
-  constructor(opts: { dock?: boolean; offscreen?: boolean; onLab?: (open: boolean) => void; onUpdate?: () => void } = {}) {
+  constructor(opts: { dock?: boolean; offscreen?: boolean; onPanel?: (panel: Panel | null) => void; onUpdate?: () => void } = {}) {
     const wa = screen.getPrimaryDisplay().bounds;
     this.win = new BrowserWindow({
       x: wa.x,
@@ -64,7 +64,7 @@ export class TopbarWindow {
       if (e.sender !== this.win.webContents) return;
       if (cmd.type === "collapse") this.setCollapsed(true);
       if (cmd.type === "expand") this.setCollapsed(false);
-      if (cmd.type === "lab") opts.onLab?.(cmd.open);
+      if (cmd.type === "panel") opts.onPanel?.(cmd.panel);
       if (cmd.type === "update") opts.onUpdate?.();
     });
 

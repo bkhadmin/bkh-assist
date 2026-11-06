@@ -53,6 +53,8 @@ export const OpportunitySchema = z.object({
   category: z.string(),
   /** message shown to staff, e.g. "คัดกรองมะเร็งปากมดลูก" */
   label: z.string(),
+  /** baht, sum of the HOSxP prices of its icodes; null/absent = no icode set (agent endpoint only) */
+  price: z.number().nullable().optional(),
 });
 export type Opportunity = z.infer<typeof OpportunitySchema>;
 
@@ -111,6 +113,45 @@ export const HbA1cResponseSchema = z.object({
 export type HbA1cResponse = z.infer<typeof HbA1cResponseSchema>;
 /** Top bar light: green when the latest HbA1c was ordered at most this many days ago, red when older. */
 export const HBA1C_MAX_AGE_DAYS = 90;
+
+/** `GET /api/agent/opportunities?hn=<hn>&machine=<hostname>`: opportunities the patient's latest visit matches. */
+export const AgentOpportunitiesResponseSchema = z.object({
+  hn: z.string(),
+  /** the visit that was evaluated; null = no visit, or no opportunity is switched on for this machine */
+  vn: z.string().nullable(),
+  items: z.array(OpportunitySchema),
+});
+export type AgentOpportunitiesResponse = z.infer<typeof AgentOpportunitiesResponseSchema>;
+
+/** `GET /api/agent/authen?hn=<hn>`: NHSO authentication (Authen Code) of the patient's latest visit. */
+export const AgentAuthenResponseSchema = z.object({
+  hn: z.string(),
+  /** "นายสมชาย ใจดี" (pname fname lname), shown after the HN; null = HN not found. Never logged. */
+  name: z.string().nullable().default(null),
+  /** date of the latest visit, "YYYY-MM-DD"; null = the patient has no visit */
+  visitDate: z.string().nullable(),
+  /** visit date and time, "YYYY-MM-DD HH:mm" (HOSxP does not record when the Authen Code was requested) */
+  visitAt: z.string().nullable(),
+  /** NHSO Authen Code (EP…/PP…); null = not authenticated */
+  authCode: z.string().nullable(),
+  /** pttype.hipdata_code of the latest visit's main right, e.g. "UCS", "OFC" */
+  hipdata: z.string().nullable(),
+});
+export type AgentAuthenResponse = z.infer<typeof AgentAuthenResponseSchema>;
+
+/** `GET|POST /api/agent/service-point`: the module ("จุดบริการ") this machine checks, set from the agent. */
+export const AgentServicePointResponseSchema = z.object({
+  machine: z.string(),
+  /** false = an admin switched this machine off */
+  active: z.boolean(),
+  modules: z.array(z.object({ code: z.string(), label: z.string(), description: z.string().nullable() })),
+  selected: z.array(z.string()),
+});
+export type AgentServicePointResponse = z.infer<typeof AgentServicePointResponseSchema>;
+export const AgentServicePointRequestSchema = z.object({
+  machine: z.string().trim().min(1).max(100),
+  module: z.string().trim().min(1).max(50),
+});
 
 /** Header carrying the agent key. */
 export const AGENT_KEY_HEADER = "x-agent-key";

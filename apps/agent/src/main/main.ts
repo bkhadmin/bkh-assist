@@ -11,13 +11,13 @@
 import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AlertState, TopbarStatus } from "../shared/alert-state";
+import type { AlertState, ServicePoint, TopbarStatus } from "../shared/alert-state";
 import { AlertWindow } from "./alert-window";
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
 import { shownHn } from "./hosxp";
-import { fetchHbA1c } from "./lab";
+import { fetchAuthen, fetchHbA1c, fetchOpportunities, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
 import { PatientWatch } from "./patient-watch";
 import { TopbarWindow } from "./topbar-window";
@@ -131,13 +131,37 @@ async function runDemo(cfg: AgentConfig) {
     mkdirSync(SHOT_DIR, { recursive: true });
     const bar = new TopbarWindow({ dock: false, offscreen: true });
     const hba1c = { state: "ok" as const, results: [{ date: "2026-11-05", value: "8.4" }, { date: "2026-04-16", value: "10.1" }, { date: "2025-11-12", value: "6.4" }] };
-    bar.update({ hn: DEMO_HN, labOpen: true, update: "0.2.0", hba1c });
+    const demoSettings = {
+      state: "ok" as const,
+      saving: false,
+      saved: false,
+      selected: ["OPDVisitcheck"],
+      modules: [
+        { code: "OPDVisitcheck", label: "ซักประวัติ OPD", description: "ตรวจการบันทึกหน้าซักประวัติ OPD: สัญญาณชีพ น้ำหนัก ส่วนสูง และอาการสำคัญ" },
+        { code: "Doctorcheck", label: "ห้องตรวจแพทย์", description: "ตรวจการบันทึกของแพทย์: แพทย์ผู้ตรวจ การวินิจฉัยหลัก และการตรวจร่างกาย" },
+      ],
+    };
+    const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "OFC" };
+    const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
+    bar.update({ hn: DEMO_HN, panel: "hba1c", update: "0.2.0", authen: noAuthen, hba1c, opps });
     await new Promise((r) => setTimeout(r, 700));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
-    lab.open({ hn: DEMO_HN, hba1c }, { offscreen: true });
+    lab.open({ hn: DEMO_HN, panel: "hba1c", settings: demoSettings, hba1c, opps, authen: noAuthen }, { offscreen: true });
     await new Promise((r) => setTimeout(r, 700));
     writeFileSync(join(SHOT_DIR, "0-hba1c.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "opps", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-opps.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "authen", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "settings", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "ofc", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-ofc.png"), (await lab.capture()).toPNG());
     lab.close();
     bar.destroy();
   }
@@ -162,20 +186,57 @@ app.whenReady().then(async () => {
   if (!cfg.agentKey) log("WARNING: agentKey is empty; the server will reject checks");
 
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
-  // On a new HN it also fetches that patient's last HbA1c results (once per HN).
-  // The HbA1c button opens a separate, centred window with the results.
-  let bar: TopbarStatus = { hn: null, labOpen: false, update: null, hba1c: { state: "loading" } };
+  // On a new HN it also fetches that patient's last HbA1c results and "จัดเก็บ" opportunities (once per HN).
+  // Their buttons open a separate, centred window.
+  let bar: TopbarStatus = { hn: null, panel: null, update: null, authen: { state: "loading" }, hba1c: { state: "loading" }, opps: { state: "loading" } };
+  let settings: ServicePoint = { state: "loading" };
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, settings, hba1c: bar.hba1c, opps: bar.opps, authen: bar.authen });
+  const showSettings = (next: ServicePoint) => {
+    settings = next;
+    if (lab.isOpen() && bar.panel === "settings") lab.update(view());
+  };
+  // Refetched on HN change and whenever จัดเก็บ/OFC opens: admin edits or a service-point change apply to the open patient.
+  const refreshOpps = () => {
+    const hn = bar.hn;
+    if (!hn) return;
+    void fetchOpportunities(cfg, hn).then((items) => {
+      if (bar.hn !== hn) return;
+      setBar({ opps: items ? { state: "ok", items } : { state: "error" } });
+    });
+  };
+  const loadSettings = async (module?: string) => {
+    const r = await servicePoint(cfg, module);
+    if (!r) return showSettings({ state: "error", message: "เชื่อมต่อ server ไม่ได้" });
+    if (!r.active) return showSettings({ state: "error", message: "admin ปิดการใช้งานเครื่องนี้" });
+    showSettings({ state: "ok", modules: r.modules, selected: r.selected, saving: false, saved: Boolean(module) });
+    if (module) {
+      log(`service point set to ${module}`);
+      await modules.refresh(); // the next save is checked with the new module right away
+      refreshOpps();
+    }
+  };
   const setBar = (patch: Partial<TopbarStatus>) => {
     bar = { ...bar, ...patch };
     topbar.update(bar);
-    if (lab.isOpen() && bar.hn) lab.update({ hn: bar.hn, hba1c: bar.hba1c });
+    if (lab.isOpen() && bar.panel && (bar.hn || bar.panel === "settings")) lab.update(view());
   };
-  const lab = new LabWindow(() => setBar({ labOpen: false }));
+  const lab = new LabWindow(
+    () => setBar({ panel: null }),
+    (code) => {
+      if (settings.state === "ok") showSettings({ ...settings, saving: true, saved: false });
+      void loadSettings(code);
+    },
+  );
   const topbar = new TopbarWindow({
-    onLab: (open) => {
-      if (open && bar.hn) {
-        lab.open({ hn: bar.hn, hba1c: bar.hba1c });
-        setBar({ labOpen: true });
+    onPanel: (panel) => {
+      if (panel === "settings") {
+        settings = { state: "loading" };
+        void loadSettings();
+      }
+      if (panel === "opps" || panel === "ofc") refreshOpps();
+      if (panel && (bar.hn || panel === "settings")) {
+        setBar({ panel });
+        lab.open(view());
       } else lab.close();
     },
     onUpdate: () => {
@@ -201,13 +262,18 @@ app.whenReady().then(async () => {
       return log("topbar HN read failed", err);
     }
     if (hn === bar.hn) return;
-    lab.close(); // the open results belonged to the previous patient
-    setBar({ hn, hba1c: { state: "loading" } });
+    if (bar.panel !== "settings") lab.close(); // the open results belonged to the previous patient
+    setBar({ hn, authen: { state: "loading" }, hba1c: { state: "loading" }, opps: { state: "loading" } });
     if (!hn) return;
+    void fetchAuthen(cfg, hn).then((a) => {
+      if (bar.hn !== hn) return;
+      setBar({ authen: a ? { state: "ok", ...a } : { state: "error" } });
+    });
     void fetchHbA1c(cfg, hn).then((results) => {
       if (bar.hn !== hn) return; // the user already moved to another patient
       setBar({ hba1c: results ? { state: "ok", results } : { state: "error" } });
     });
+    refreshOpps();
   }, HN_POLL_MS);
 
   if (!w.isElevated()) log("WARNING: not running as Administrator; saves in an elevated HOSxP are not seen");

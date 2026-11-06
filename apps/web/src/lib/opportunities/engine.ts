@@ -4,7 +4,7 @@ import { hisQuery } from "@/lib/his";
 import { matches, type Condition } from "./conditions";
 import { getSource } from "./sources";
 
-export type OpportunityDef = Opportunity & { conditions: Condition[] };
+export type OpportunityDef = Opportunity & { conditions: Condition[]; icodes?: string[] };
 
 type Row = Record<string, string | number | null>;
 

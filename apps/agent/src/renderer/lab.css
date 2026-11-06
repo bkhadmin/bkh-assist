@@ -96,3 +96,36 @@ td { padding: 10px 18px; border-top: 1px solid var(--border); font-variant-numer
 .latest { margin-left: 8px; font-size: 11px; font-weight: 700; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 1px 8px; }
 
 .foot { padding: 10px 18px 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+
+/* "จัดเก็บ" panel */
+.opps { list-style: none; padding: 4px 14px; display: grid; gap: 4px; }
+.opps li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-weight: 600; }
+.opps .cat { flex: none; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: var(--green); background: var(--green-soft); }
+
+/* Authen panel */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; padding: 14px 18px; }
+.facts dt { color: var(--muted); font-size: 13px; }
+.facts dd { margin: 0; font-weight: 600; }
+.facts .code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 15px; letter-spacing: 0.5px; user-select: text; }
+.facts .note { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; color: var(--muted); }
+
+/* settings panel: service point */
+.points { padding: 10px 18px; }
+.points fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.points legend { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.point { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.point.picked { border-color: var(--brand); background: var(--brand-soft); }
+.point input { margin-top: 3px; accent-color: var(--brand); }
+.point b { font-weight: 700; }
+.point small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.actions .ok { color: var(--green); font-size: 12.5px; font-weight: 600; }
+.primary { padding: 7px 18px; border-radius: 8px; font-weight: 700; color: #ffffff; background: var(--brand); }
+.primary:disabled { opacity: 0.45; cursor: default; }
+
+/* price per item and the total above the footer */
+.opps .label { flex: 1; }
+.opps .price { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--green); }
+.opps .price.none { color: var(--muted); font-weight: 400; }
+.total { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 24px; border-top: 1px solid var(--border); font-weight: 600; }
+.total b { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--green); }

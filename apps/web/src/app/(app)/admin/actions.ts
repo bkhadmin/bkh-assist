@@ -162,6 +162,8 @@ const OpportunityInput = z.object({
   description: z.string().trim().max(500),
   sortOrder: z.number().int().min(0).max(1_000_000),
   isActive: z.boolean(),
+  // trust boundary: bound as SQL params on HIS by /api/agent/opportunities
+  icodes: z.array(z.string().trim().regex(/^[0-9A-Za-z]{1,15}$/, "icode ต้องเป็นตัวอักษรหรือตัวเลข")).max(20).default([]),
   conditions: z.array(ConditionSchema).min(1, "ต้องมีอย่างน้อย 1 เงื่อนไข").max(20),
 });
 
@@ -205,24 +207,25 @@ export async function saveOpportunity(input: z.input<typeof OpportunityInput>): 
   const p = OpportunityInput.safeParse(input);
   if (!p.success) return fail(p.error.issues[0].message);
   const { isNew, code, category, groupName, label, description, sortOrder, isActive } = p.data;
+  const icodes = [...new Set(p.data.icodes)];
   const conditions: Condition[] = [];
   for (const [i, c] of p.data.conditions.entries()) {
     const r = checkCondition(c, i + 1);
     if (typeof r === "string") return fail(r);
     conditions.push(r);
   }
-  const params = [code, category, groupName, label, description, JSON.stringify(conditions), isActive, sortOrder];
+  const params = [code, category, groupName, label, description, JSON.stringify(conditions), isActive, sortOrder, icodes];
   if (isNew) {
     const { rowCount } = await assistExecute(
-      `INSERT INTO opportunities (code, category, group_name, label, description, conditions, is_active, sort_order)
-       VALUES ($1, $2, nullif($3, ''), $4, nullif($5, ''), $6::jsonb, $7, $8) ON CONFLICT (code) DO NOTHING`,
+      `INSERT INTO opportunities (code, category, group_name, label, description, conditions, is_active, sort_order, icodes)
+       VALUES ($1, $2, nullif($3, ''), $4, nullif($5, ''), $6::jsonb, $7, $8, $9::text[]) ON CONFLICT (code) DO NOTHING`,
       params,
     );
     if (!rowCount) return fail("มีรหัสนี้อยู่แล้ว");
   } else {
     const { rowCount } = await assistExecute(
       `UPDATE opportunities SET category = $2, group_name = nullif($3, ''), label = $4, description = nullif($5, ''),
-              conditions = $6::jsonb, is_active = $7, sort_order = $8, updated_at = now()
+              conditions = $6::jsonb, is_active = $7, sort_order = $8, icodes = $9::text[], updated_at = now()
        WHERE code = $1`,
       params,
     );
