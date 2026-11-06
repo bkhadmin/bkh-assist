@@ -41,6 +41,14 @@ export const Doctorcheck: Module = {
       sql: "SELECT EXISTS(SELECT 1 FROM ovstdiag WHERE vn = ? AND diagtype = '1' AND icd10 IS NOT NULL AND TRIM(icd10) <> '') AS ok",
     },
     {
+      code: "Doctorcheck.DIAG_TEXT",
+      label: "คำวินิจฉัย (ข้อความ)",
+      severity: "warning",
+      // ovst.diag_text: empty = NULL; '-' / '-1' are placeholders, not a diagnosis. Filled on 42% of visits
+      // with a diagnosis (2026-10-30 … 11-05), hence warning. EXPLAIN: const on ix_vn_unique.
+      sql: "SELECT EXISTS(SELECT 1 FROM ovst WHERE vn = ? AND TRIM(diag_text) NOT IN ('', '-', '-1')) AS ok",
+    },
+    {
       code: "Doctorcheck.EXTERNAL_CAUSE",
       label: "รหัสสาเหตุภายนอก (V–Y) ของการบาดเจ็บ",
       severity: "error",

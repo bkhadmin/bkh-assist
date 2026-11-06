@@ -6,7 +6,7 @@ import { hisQuery } from "@/lib/his";
  * Find the HOSxP visit (VN) the user just saved.
  *
  * SQL proven by prove-query on bkhosxp 2026-11-05 (index_merge ix_hn+ix_vstdate / range ix_vstdate).
- * `vstdate BETWEEN DATE(from) AND DATE(to)` keeps visits saved across midnight.
+ * Time-only search: `vstdate BETWEEN DATE(from) AND DATE(to)` keeps visits saved across midnight.
  * Rows carry only vn, hn, updatedAt ("YYYY-MM-DD HH:mm:ss", HIS local time) — never names/CID.
  *
  * Timing (PoC 2026-11-05): HOSxP writes opdscreen ~5 s AFTER the "บันทึก" click, because a
@@ -40,22 +40,29 @@ function windowAround(savedAt: Date, w: { beforeSec: number; afterSec: number })
 
 export async function findByVn(vn: string): Promise<VisitCandidate | null> {
   const sql =
-    "SELECT vn, hn, update_datetime AS updatedAt FROM opdscreen WHERE vn = ? AND vstdate = CURDATE() LIMIT 1";
+    "SELECT vn, hn, update_datetime AS updatedAt FROM opdscreen WHERE vn = ? LIMIT 1";
   const rows = await hisQuery<VisitCandidate>(sql, [vn]);
   return rows[0] ?? null;
 }
 
+/**
+ * No vstdate filter: staff also edit and re-save past visits (e.g. yesterday's), and those must be found too.
+ * Re-proven 2026-11-06: ref on ix_hn (~180 rows per patient), so the visit date is not needed for speed.
+ */
 export async function findByHnAndTime(hn: string, from: string, to: string): Promise<VisitCandidate[]> {
   const sql = `SELECT vn, hn, update_datetime AS updatedAt
     FROM opdscreen
     WHERE hn = ?
-      AND vstdate BETWEEN DATE(?) AND DATE(?)
       AND update_datetime BETWEEN ? AND ?
     ORDER BY update_datetime DESC
     LIMIT 11`;
-  return hisQuery<VisitCandidate>(sql, [hn, from, to, from, to]);
+  return hisQuery<VisitCandidate>(sql, [hn, from, to]);
 }
 
+/**
+ * shortcut: keeps the vstdate filter because opdscreen has no index on update_datetime (full scan of 3M rows
+ * otherwise), so a past visit saved without a readable HN is not found. Upgrade if HN reading ever fails often.
+ */
 export async function findByTime(from: string, to: string): Promise<VisitCandidate[]> {
   const sql = `SELECT vn, hn, update_datetime AS updatedAt
     FROM opdscreen
