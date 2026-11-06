@@ -114,6 +114,41 @@ export type HbA1cResponse = z.infer<typeof HbA1cResponseSchema>;
 /** Top bar light: green when the latest HbA1c was ordered at most this many days ago, red when older. */
 export const HBA1C_MAX_AGE_DAYS = 90;
 
+/**
+ * `GET /api/agent/rlu?hn=<hn>&machine=<hostname>`: RLU (Rational Lab Use) items set in admin, for the top bar
+ * "RLU" badge. Each item is a lab (one or more lab_items_code) with admin-defined conditions (same engine and
+ * sources as opportunities); `warn` = its conditions match the patient's latest visit. The badge blinks when any
+ * item warns. Only dates and values, never names/CID.
+ */
+export const RluResultSchema = z.object({
+  /** order date, "YYYY-MM-DD" (HIS local date) */
+  date: z.string(),
+  /** as reported by the lab, e.g. "6.8" */
+  value: z.string(),
+  /** lab_items.lab_items_name of this result, e.g. "HbA1c" (an item may span several lab codes) */
+  name: z.string(),
+});
+export const RluItemSchema = z.object({
+  code: z.string(),
+  /** e.g. "HbA1c" */
+  label: z.string(),
+  /** the item's conditions match the latest visit */
+  warn: z.boolean(),
+  /** admin text shown with a warning, e.g. "ไม่ได้ตรวจเกิน 90 วัน"; null = none set */
+  message: z.string().nullable(),
+  /** last 3 reported results of the item's lab codes, newest first */
+  results: z.array(RluResultSchema),
+});
+export type RluItem = z.infer<typeof RluItemSchema>;
+export const AgentRluResponseSchema = z.object({
+  hn: z.string(),
+  /** the visit the conditions were evaluated on; null = no visit */
+  vn: z.string().nullable(),
+  /** active items in admin order (every active item, warning or not) */
+  items: z.array(RluItemSchema),
+});
+export type AgentRluResponse = z.infer<typeof AgentRluResponseSchema>;
+
 /** `GET /api/agent/opportunities?hn=<hn>&machine=<hostname>`: opportunities the patient's latest visit matches. */
 export const AgentOpportunitiesResponseSchema = z.object({
   hn: z.string(),
