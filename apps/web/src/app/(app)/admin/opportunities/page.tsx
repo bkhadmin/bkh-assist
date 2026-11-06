@@ -56,6 +56,7 @@ async function OpportunityList() {
                       </Link>
                       <div className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted">
                         {o.code}
+                        {o.price != null && <span title="ราคาเหมาจ่าย">฿{o.price.toLocaleString("th-TH")}</span>}
                         {!o.isActive && <Badge>ปิดอยู่</Badge>}
                         {o.modules > 0 && <Badge tone="accent">ใช้ใน {o.modules} module</Badge>}
                       </div>

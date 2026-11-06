@@ -17,7 +17,7 @@ const placeholders: Partial<Record<Op, string>> = { between: "เช่น 30, 5
 /** Create (initial = null) or edit an opportunity. The server re-validates every condition. */
 export function OpportunityForm({ initial, categories, sources }: { initial: OpportunityRow | null; categories: string[]; sources: SourceOption[] }) {
   const router = useRouter();
-  const ids = { code: useId(), category: useId(), categories: useId(), group: useId(), label: useId(), description: useId(), sort: useId(), icodes: useId() };
+  const ids = { code: useId(), category: useId(), categories: useId(), group: useId(), label: useId(), description: useId(), sort: useId(), icodes: useId(), price: useId() };
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [rows, setRows] = useState<Row[]>(() =>
     (initial?.conditions ?? []).map((c) => ({ id: nextId++, source: c.source, codes: (c.codes ?? []).join(", "), column: c.column, op: c.op, value: c.value ?? "" })),
@@ -51,6 +51,7 @@ export function OpportunityForm({ initial, categories, sources }: { initial: Opp
         description: text("description"),
         sortOrder: Number(text("sort_order")),
         icodes: split(text("icodes")),
+        price: text("price"),
         isActive,
         conditions: rows.map((r) => ({
           source: r.source,
@@ -105,10 +106,26 @@ export function OpportunityForm({ initial, categories, sources }: { initial: Opp
           <input id={ids.sort} name="sort_order" type="number" required min={0} step={1} defaultValue={initial?.sortOrder ?? 0} className={field} />
           <p className="text-sm text-muted">น้อยขึ้นก่อน ทั้งในรายการนี้และในการ์ดแจ้งเตือน</p>
         </div>
-        <div className="col-span-full space-y-1">
+        <div className="space-y-1">
           <label htmlFor={ids.icodes} className="block text-sm font-medium">icode ค่าบริการ (HOSxP)</label>
           <input id={ids.icodes} name="icodes" defaultValue={(initial?.icodes ?? []).join(", ")} placeholder="เช่น 3001142 คั่นด้วย , ถ้ามีหลายรายการ" className={field} />
           <p className="text-sm text-muted">ราคาจาก nondrugitems / drugitems รวมกัน แสดงที่ป้ายจัดเก็บของ agent · เว้นว่างได้</p>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor={ids.price} className="block text-sm font-medium">ราคาเหมาจ่าย (บาท)</label>
+          <input
+            id={ids.price}
+            name="price"
+            type="number"
+            min={0}
+            max={1_000_000}
+            step={0.01}
+            inputMode="decimal"
+            defaultValue={initial?.price ?? ""}
+            placeholder="เช่น 4000"
+            className={field}
+          />
+          <p className="text-sm text-muted">ใช้แทนราคาจาก icode เช่น ค่าเบิกเหมาจ่าย สปสช. · เว้นว่างได้</p>
         </div>
         <div className="col-span-full space-y-1">
           <label htmlFor={ids.label} className="block text-sm font-medium">ข้อความแจ้งหน้างาน</label>
