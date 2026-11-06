@@ -3,7 +3,7 @@
 //   npm run release -w @bkh/agent   ->  same, then publish to GitHub Releases (needs env GH_TOKEN)
 //
 // The version is "version" in apps/agent/package.json; bump it before a release (a published version
-// cannot be released twice). Installed agents update themselves from the public releases repo below.
+// cannot be released twice). Installed agents update themselves from the GitHub Releases of the (public) code repo below.
 //
 // The app is staged in release/app with its own package.json that lists only the two native modules:
 // everything else (our code, @bkh/shared, zod, react) is already bundled into dist/ by electron-vite. A standalone
@@ -16,7 +16,7 @@ import { Arch, Platform, build as electronBuild } from "electron-builder";
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 const PUBLISH = process.argv.includes("--publish");
 // Public repo that only holds the release files; the code repo (bkhadmin/bkh-assist) is private.
-const RELEASES = { provider: "github", owner: "bkhadmin", repo: "bkh-assist-releases", releaseType: "release" };
+const RELEASES = { provider: "github", owner: "bkhadmin", repo: "bkh-assist", releaseType: "release" };
 
 if (PUBLISH) {
   if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is not set (a GitHub token that can write to " + RELEASES.owner + "/" + RELEASES.repo + ")");

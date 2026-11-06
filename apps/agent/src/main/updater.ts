@@ -1,5 +1,5 @@
 /**
- * Auto update from GitHub Releases (public repo bkhadmin/bkh-assist-releases; the code repo is private).
+ * Auto update from GitHub Releases of the public code repo bkhadmin/bkh-assist.
  * The new version downloads in the background; once it is ready the top bar shows an "อัปเดต" button,
  * which installs it silently and restarts the agent. Only in a packaged build (dev has no app-update.yml).
  */
