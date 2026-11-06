@@ -155,36 +155,60 @@ function Authen({ authen: a }: { authen: LabView["authen"] }) {
   if (a.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
   if (a.state === "error") return <Msg>{ERROR}</Msg>;
   if (!a.visitAt) return <Msg>ไม่พบ visit ของคนไข้นี้</Msg>;
-  const [date, time] = a.visitAt.split(" ");
-  const when = `${thaiDate(date)} เวลา ${time} น.`;
-  if (!a.authCode)
-    return (
-      <>
-        <p className="summary red">
-          <span className="dot" />
-          คนไข้รายนี้ยังไม่ผ่านการ authen
-        </p>
-        <dl className="facts">
-          <dt>visit</dt>
-          <dd>{when}</dd>
-        </dl>
-      </>
-    );
+  const at = (s: string) => {
+    const [d, t] = s.split(" ");
+    return `${thaiDate(d)} เวลา ${t} น.`;
+  };
+  const c = a.close;
+  const facts = (
+    <dl className="facts">
+      <dt>visit</dt>
+      <dd>{at(a.visitAt)}</dd>
+      <dt>สิทธิ</dt>
+      <dd>{a.hipdata ?? "-"}</dd>
+      {c?.code && (
+        <>
+          <dt>เลขปิดสิทธิ</dt>
+          <dd className="code">{c.code}</dd>
+        </>
+      )}
+      {c?.closedAt && (
+        <>
+          <dt>ปิดสิทธิเมื่อ</dt>
+          <dd>{at(c.closedAt)}</dd>
+        </>
+      )}
+      {c?.cancelledAt && (
+        <>
+          <dt>ยกเลิกเมื่อ</dt>
+          <dd>{at(c.cancelledAt)}</dd>
+        </>
+      )}
+      {c?.total != null && (
+        <>
+          <dt>ค่าใช้จ่าย</dt>
+          <dd>
+            {baht(c.total)}
+            <span className="note">
+              เบิก สปสช. {baht(c.privilege ?? 0)} · ผู้ป่วยจ่าย {baht(c.paid ?? 0)}
+            </span>
+          </dd>
+        </>
+      )}
+    </dl>
+  );
+  const [tone, text] =
+    c?.status === "closed" ? ["green", "ปิดสิทธิ สปสช. แล้ว"]
+    : c?.status === "cancelled" ? ["amber", "ยกเลิกการปิดสิทธิแล้ว ยังไม่ได้ปิดใหม่"]
+    : a.hipdata === "UCS" ? ["red", "คนไข้รายนี้ยังไม่ได้ปิดสิทธิ"]
+    : ["", `ยังไม่ได้ปิดสิทธิ (สิทธิ ${a.hipdata ?? "-"} ปกติไม่ต้องปิดสิทธิ สปสช.)`];
   return (
     <>
-      <p className="summary green">
+      <p className={`summary ${tone}`}>
         <span className="dot" />
-        ผ่านการ authen แล้ว
+        {text}
       </p>
-      <dl className="facts">
-        <dt>เลข Authen</dt>
-        <dd className="code">{a.authCode}</dd>
-        <dt>วันเวลา</dt>
-        <dd>
-          {when}
-          <span className="note">เวลามารับบริการ: HOSxP ไม่ได้บันทึกเวลาที่ขอ Authen</span>
-        </dd>
-      </dl>
+      {facts}
     </>
   );
 }
@@ -232,7 +256,7 @@ const PANELS: Record<Exclude<LabView["panel"], "rlu">, { title: string; foot: st
   save: { title: "ผลตรวจการบันทึก", foot: "กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง ผลจะอัปเดตที่แถบด้านบน" },
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
-  authen: { title: "Authen · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (visit_pttype.auth_code)" },
+  authen: { title: "ปิดสิทธิ · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (การปิดสิทธิใน HOSxP: nhso_confirm_privilege)" },
   opps: { title: "งาน PP · บริการที่เข้าเกณฑ์", foot: "ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
 };
 

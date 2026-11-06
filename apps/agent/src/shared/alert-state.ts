@@ -1,4 +1,4 @@
-import type { RluItem } from "@bkh/shared";
+import type { AgentAuthenResponse, RluItem } from "@bkh/shared";
 
 /** A missing / should-have field of a save check. Never contains names/CID. */
 export type AlertItem = { label: string; severity: "error" | "warning" };
@@ -39,8 +39,8 @@ export type TopbarStatus = {
   save: SaveCheck | null;
   /** RLU (Rational Lab Use) items in admin order; the badge blinks red when any item warns */
   rlu: { state: "loading" } | { state: "error" } | { state: "ok"; items: RluItem[] };
-  /** NHSO Authen Code on the patient's latest visit ("YYYY-MM-DD"; null date = no visit) */
-  authen: { state: "loading" } | { state: "error" } | { state: "ok"; name: string | null; visitDate: string | null; visitAt: string | null; authCode: string | null; hipdata: string | null };
+  /** the patient's latest visit from /api/agent/authen: name, right (hipdata) and NHSO "ปิดสิทธิ" (close); null date = no visit */
+  authen: { state: "loading" } | { state: "error" } | ({ state: "ok" } & Omit<AgentAuthenResponse, "hn">);
   /** opportunities (e.g. PP) the patient's latest visit matches: the "จัดเก็บ" badge */
   opps: { state: "loading" } | { state: "error" } | { state: "ok"; items: AlertOpportunity[] };
 };

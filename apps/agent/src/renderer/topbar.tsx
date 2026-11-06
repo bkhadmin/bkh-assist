@@ -29,20 +29,25 @@ const AppIcon = () => <img className="tab-icon" src={noviceUrl} alt="" width={18
 
 const today = () => new Date().toLocaleDateString("sv-SE"); // "YYYY-MM-DD", local
 
-/** NHSO Authen Code of the latest visit: green ✓ / red ✕; grey when the latest visit is not today's. */
-function AuthenBadge({ authen: a, active, onClick }: { authen: TopbarStatus["authen"]; active: boolean; onClick: () => void }) {
-  const has = a.state === "ok" && a.authCode != null;
+/**
+ * NHSO "ปิดสิทธิ" of the latest visit: green ✓ closed / red ✕ not closed yet (UCS visit today) / amber ! cancelled;
+ * grey for other rights (they are normally not closed with NHSO) and when the latest visit is not today's.
+ */
+function CloseBadge({ authen: a, active, onClick }: { authen: TopbarStatus["authen"]; active: boolean; onClick: () => void }) {
+  const c = a.state === "ok" ? a.close : null;
   const [tone, mark, title] =
-    a.state === "loading" ? ["none", "…", "กำลังตรวจ Authen"]
-    : a.state === "error" ? ["none", "?", "ตรวจ Authen ไม่ได้ (เชื่อมต่อ server ไม่ได้)"]
+    a.state === "loading" ? ["none", "…", "กำลังตรวจการปิดสิทธิ"]
+    : a.state === "error" ? ["none", "?", "ตรวจการปิดสิทธิไม่ได้ (เชื่อมต่อ server ไม่ได้)"]
     : !a.visitDate ? ["none", "–", "ไม่พบ visit ของคนไข้นี้"]
-    : a.visitDate !== today() ? ["none", has ? "✓" : "✕", `visit ล่าสุด ${thaiDate(a.visitDate)} ไม่ใช่วันนี้ (${has ? "มี" : "ไม่มี"} Authen)`]
-    : has ? ["green", "✓", "visit วันนี้ขอ Authen แล้ว"]
-    : ["red", "✕", "visit วันนี้ยังไม่ได้ขอ Authen Code จาก สปสช."];
+    : a.visitDate !== today() ? ["none", c?.status === "closed" ? "✓" : "–", `visit ล่าสุด ${thaiDate(a.visitDate)} ไม่ใช่วันนี้`]
+    : c?.status === "closed" ? ["green", "✓", "ปิดสิทธิ สปสช. แล้ว"]
+    : c?.status === "cancelled" ? ["amber", "!", "ยกเลิกการปิดสิทธิแล้ว ยังไม่ได้ปิดใหม่"]
+    : a.hipdata === "UCS" ? ["red", "✕", "visit วันนี้ (สิทธิ UCS) ยังไม่ได้ปิดสิทธิ สปสช."]
+    : ["none", "–", `สิทธิ ${a.hipdata ?? "-"}: ปกติไม่ต้องปิดสิทธิ สปสช.`];
   return (
     <button className={`authen ${tone} ${active ? "active" : ""}`} title={`${title} · คลิกดูรายละเอียด`} aria-expanded={active} onClick={onClick}>
       <span className="mark" aria-hidden="true">{mark}</span>
-      Authen
+      ปิดสิทธิ
     </button>
   );
 }
@@ -127,7 +132,7 @@ function Topbar() {
         </span>
       )}
       {s.save && <SaveBadge save={s.save} screenHn={s.hn} active={s.panel === "save"} onClick={() => togglePanel("save")} />}
-      {s.hn && <AuthenBadge authen={s.authen} active={s.panel === "authen"} onClick={() => togglePanel("authen")} />}
+      {s.hn && <CloseBadge authen={s.authen} active={s.panel === "authen"} onClick={() => togglePanel("authen")} />}
       {s.hn && (
         <button
           className={`lab ${s.panel === "rlu" ? "active" : ""}`}

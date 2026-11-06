@@ -110,7 +110,7 @@ async function runDemo(cfg: AgentConfig) {
         { code: "Doctorcheck", label: "ห้องตรวจแพทย์", description: "ตรวจการบันทึกของแพทย์: แพทย์ผู้ตรวจ การวินิจฉัยหลัก และการตรวจร่างกาย" },
       ],
     };
-    const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "OFC" };
+    const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "UCS", close: null };
     const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
     bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", blind: false, save, authen: noAuthen, rlu, opps });
     await new Promise((r) => setTimeout(r, 900));

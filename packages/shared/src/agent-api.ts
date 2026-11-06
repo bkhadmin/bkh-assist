@@ -171,6 +171,25 @@ export const AgentAuthenResponseSchema = z.object({
   authCode: z.string().nullable(),
   /** pttype.hipdata_code of the latest visit's main right, e.g. "UCS", "OFC" */
   hipdata: z.string().nullable(),
+  /**
+   * NHSO "ปิดสิทธิ" of the latest visit (nhso_confirm_privilege); null = not closed (or no visit).
+   * Optional for servers older than the agent. Times "YYYY-MM-DD HH:mm"; amounts in baht.
+   */
+  close: z
+    .object({
+      status: z.enum(["closed", "cancelled"]),
+      /** EP… code returned by NHSO */
+      code: z.string().nullable(),
+      closedAt: z.string().nullable(),
+      cancelledAt: z.string().nullable(),
+      total: z.number().nullable(),
+      /** claimed from NHSO */
+      privilege: z.number().nullable(),
+      /** paid by the patient */
+      paid: z.number().nullable(),
+    })
+    .nullable()
+    .default(null),
 });
 export type AgentAuthenResponse = z.infer<typeof AgentAuthenResponseSchema>;
 
