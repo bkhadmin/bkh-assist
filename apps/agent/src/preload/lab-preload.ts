@@ -21,4 +21,8 @@ contextBridge.exposeInMainWorld("bkhLab", {
   setServicePoint(code: string) {
     ipcRenderer.send("lab:service-point", code);
   },
+  /** RLU dropdown: its content height (CSS px), so the window fits it */
+  resize(height: number) {
+    ipcRenderer.send("lab:resize", height);
+  },
 });

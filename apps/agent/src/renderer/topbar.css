@@ -31,7 +31,7 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 .tab:hover, .tab:focus-visible { opacity: 1; background: #0b5a5e; }
 @media (prefers-reduced-motion: reduce) { .tab { transition: none; } }
 
-/* HbA1c button with a traffic light */
+/* RLU badge with a traffic light (and the number of warning items) */
 .lab {
   display: inline-flex; align-items: center; gap: 6px;
   height: 22px; padding: 0 10px; border-radius: 999px;
@@ -41,6 +41,10 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 .light { width: 10px; height: 10px; border-radius: 50%; background: #9aa5ad; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
 .light.green { background: #3ddc84; animation: blink 0.6s ease-in-out 5; }
 .light.red { background: #ff5a4a; animation: blink 0.6s ease-in-out 10; }
+.lab .count {
+  min-width: 16px; height: 16px; padding: 0 4px; margin-right: -6px; border-radius: 999px; display: inline-grid; place-items: center;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: #ffffff; background: #d93a2b;
+}
 @keyframes blink { 50% { opacity: 0.15; } }
 .tab-icon { flex: none; display: block; }
 
@@ -67,7 +71,7 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 }
 .collect.has .count { color: #0b3b1f; background: #7ee2b0; }
 
-/* NHSO Authen badge (left of HbA1c) */
+/* NHSO Authen badge (left of RLU) */
 .authen {
   display: inline-flex; align-items: center; gap: 5px;
   height: 22px; padding: 0 10px 0 4px; border-radius: 999px;
@@ -82,7 +86,7 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 .authen.red .mark { background: #ff5a4a; color: #ffffff; }
 .authen.red { background: rgba(255, 90, 74, 0.28); }
 
-/* OFC (กรมบัญชีกลาง) right: fee-for-service, a hint to offer more services (right of HbA1c) */
+/* OFC (กรมบัญชีกลาง) right: fee-for-service, a hint to offer more services */
 .ofc {
   display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 999px;
   gap: 6px; margin-right: 6px; font-size: 12.5px; font-weight: 700; color: #3a2400; background: #ffd27a;

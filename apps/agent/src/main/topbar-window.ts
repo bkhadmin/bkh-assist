@@ -22,7 +22,7 @@ export class TopbarWindow {
   private collapsed = false;
 
   /** dock = false: render only (demo screenshots), do not reserve screen space. */
-  constructor(opts: { dock?: boolean; offscreen?: boolean; onPanel?: (panel: Panel | null) => void; onUpdate?: () => void } = {}) {
+  constructor(opts: { dock?: boolean; offscreen?: boolean; onPanel?: (panel: Panel | null, x?: number) => void; onUpdate?: () => void } = {}) {
     const wa = screen.getPrimaryDisplay().bounds;
     this.win = new BrowserWindow({
       x: wa.x,
@@ -64,7 +64,7 @@ export class TopbarWindow {
       if (e.sender !== this.win.webContents) return;
       if (cmd.type === "collapse") this.setCollapsed(true);
       if (cmd.type === "expand") this.setCollapsed(false);
-      if (cmd.type === "panel") opts.onPanel?.(cmd.panel);
+      if (cmd.type === "panel") opts.onPanel?.(cmd.panel, typeof cmd.x === "number" ? cmd.x : undefined);
       if (cmd.type === "update") opts.onUpdate?.();
     });
 
@@ -117,6 +117,15 @@ export class TopbarWindow {
     if (JSON.stringify(this.status) === JSON.stringify(status)) return;
     this.status = status;
     void this.ready.then(() => this.win.webContents.send("topbar:status", status));
+  }
+
+  /**
+   * Screen point (DIP) right under the bar at `x` CSS px from its left: where a dropdown under a badge starts.
+   * The bar's CSS px are DIP (zoom 1) and getBounds() is DIP too; dock() already converted the AppBar's physical rect.
+   */
+  below(x: number) {
+    const b = this.win.getBounds();
+    return { x: b.x + x, y: b.y + b.height };
   }
 
   capture() {
