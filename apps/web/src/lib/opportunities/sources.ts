@@ -39,6 +39,9 @@ const HISTORY_COLUMNS: SourceColumn[] = [
 
 const CODE = /^[0-9A-Za-z.+_-]{1,20}$/;
 
+/** A lab row that counts as a result: reported and not blank. */
+const LAB_REPORTED = "h.confirm_report = 'Y' AND TRIM(lo.lab_order_result) <> ''";
+
 /** "Pregnant now": an open ANC record that is not years old. */
 const CURRENT_PREG = "a.discharge = 'N' AND a.labor_date IS NULL AND COALESCE(a.lmp, a.anc_register_date) >= o.vstdate - INTERVAL 300 DAY";
 
@@ -131,22 +134,40 @@ export const SOURCES: DataSource[] = [
     label: "แล็บ (รหัส lab_items)",
     description: "ประวัติการสั่งแล็บ เช่น 978 = FIT test, 1017 = HPV DNA",
     param: { label: "รหัสแล็บ (lab_items_code)", hint: "คั่นด้วยจุลภาค เช่น 978, 294", pattern: /^[0-9]{1,9}$/ },
-    columns: [...HISTORY_COLUMNS, { name: "last_value", label: "ผลล่าสุดที่รายงานแล้ว (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" }],
-    // last_value: the latest reported result (confirm_report = 'Y', non-empty) up to the visit; "< 30", "Negative" -> NULL.
-    // Proven 2026-11-06 on a real VN: 22 ms, the subquery runs once (o is const): range on lab_head.ix_hn_order_date
-    // (~100 rows) + eq_ref on lab_order PRIMARY, same plan as the history part.
+    columns: [
+      ...HISTORY_COLUMNS,
+      { name: "last_value", label: "ผลล่าสุดที่รายงานแล้ว (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
+      { name: "prev_value", label: "ค่าผลครั้งก่อนหน้า (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
+      { name: "prev2_value", label: "ค่าผลก่อนหน้า 2 ครั้ง (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
+      { name: "days_last_prev", label: "จำนวนวันระหว่างผลล่าสุดกับครั้งก่อน (ว่าง = ไม่มีผลครั้งก่อน)", type: "number" },
+      { name: "days_prev_prev2", label: "จำนวนวันระหว่างผลครั้งก่อนกับก่อนหน้านั้น (ว่าง = ไม่มีผล)", type: "number" },
+    ],
+    // Result columns: reported results (confirm_report = 'Y', non-empty) up to the visit, newest first (order date/time,
+    // then lab_order_number); rn 1 = last, 2 = prev, 3 = prev2. A non-numeric result ("< 30", "Negative") still takes
+    // its place in the sequence with value NULL, so "prev_value lt 6.5" fails instead of skipping to an older result.
+    // days_* = days between the order dates. History columns (days_since, count_fy) count every order, reported or not.
+    // Proven 2026-11-07 on bkhosxp (MariaDB 10.11.13) with HbA1c (334): one pass over the patient's lab rows. EXPLAIN:
+    // derived table (window function, materialized once): o const by vn, range on lab_head.ix_hn_order_date (~55 rows),
+    // eq_ref on lab_order PRIMARY; outer filesort of those rows. 1-2 ms on VNs with >= 4, 1 and 0 results and with a
+    // non-numeric result (old two-pass query 1-7 ms); days_since/count_fy/last_value equal the old query; unknown VN = no row.
     build: (codes, vn) => ({
-      sql: `SELECT DATEDIFF(o.vstdate, MAX(h.order_date)) AS days_since,
-              COUNT(DISTINCT CASE WHEN h.order_date >= ${FY_START} THEN h.lab_order_number END) AS count_fy,
-              (SELECT CASE WHEN TRIM(r.lab_order_result) REGEXP '^-?[0-9]+([.][0-9]+)?$' THEN TRIM(r.lab_order_result) + 0 END
-               FROM lab_head rh JOIN lab_order r ON r.lab_order_number = rh.lab_order_number AND r.lab_items_code IN (${marks(codes.length)})
-               WHERE rh.hn = o.hn AND ${WINDOW("rh.order_date")} AND rh.confirm_report = 'Y' AND TRIM(r.lab_order_result) <> ''
-               ORDER BY rh.order_date DESC, rh.order_time DESC LIMIT 1) AS last_value
-            FROM ovst o
-            LEFT JOIN (lab_head h JOIN lab_order lo ON lo.lab_order_number = h.lab_order_number AND lo.lab_items_code IN (${marks(codes.length)}))
-              ON h.hn = o.hn AND ${WINDOW("h.order_date")}
-            WHERE o.vn = ? GROUP BY o.vn, o.vstdate`,
-      params: [...codes, ...codes, vn],
+      sql: `SELECT DATEDIFF(x.vstdate, MAX(x.order_date)) AS days_since,
+              COUNT(DISTINCT CASE WHEN x.in_fy THEN x.lab_order_number END) AS count_fy,
+              MAX(CASE WHEN x.rn = 1 THEN x.val END) AS last_value,
+              MAX(CASE WHEN x.rn = 2 THEN x.val END) AS prev_value,
+              MAX(CASE WHEN x.rn = 3 THEN x.val END) AS prev2_value,
+              DATEDIFF(MAX(CASE WHEN x.rn = 1 THEN x.order_date END), MAX(CASE WHEN x.rn = 2 THEN x.order_date END)) AS days_last_prev,
+              DATEDIFF(MAX(CASE WHEN x.rn = 2 THEN x.order_date END), MAX(CASE WHEN x.rn = 3 THEN x.order_date END)) AS days_prev_prev2
+            FROM (SELECT o.vn, o.vstdate, h.order_date, h.lab_order_number, h.order_date >= ${FY_START} AS in_fy,
+                    CASE WHEN TRIM(lo.lab_order_result) REGEXP '^-?[0-9]+([.][0-9]+)?$' THEN TRIM(lo.lab_order_result) + 0 END AS val,
+                    CASE WHEN ${LAB_REPORTED} THEN ROW_NUMBER() OVER (PARTITION BY ${LAB_REPORTED}
+                      ORDER BY h.order_date DESC, h.order_time DESC, h.lab_order_number DESC) END AS rn
+                  FROM ovst o
+                  LEFT JOIN (lab_head h JOIN lab_order lo ON lo.lab_order_number = h.lab_order_number AND lo.lab_items_code IN (${marks(codes.length)}))
+                    ON h.hn = o.hn AND ${WINDOW("h.order_date")}
+                  WHERE o.vn = ?) x
+            GROUP BY x.vn, x.vstdate`,
+      params: [...codes, vn],
     }),
   },
   {

@@ -13,3 +13,10 @@ test("every source binds one param per placeholder", () => {
     }
   }
 });
+
+test("every declared column is selected", () => {
+  for (const src of SOURCES) {
+    const { sql } = src.build(src.param ? ["1"] : [], "690101000001");
+    for (const col of src.columns) assert.match(sql, new RegExp(`\\b${col.name}\\b`), `${src.code}.${col.name}`);
+  }
+});
