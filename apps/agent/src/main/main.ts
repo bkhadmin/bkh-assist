@@ -17,7 +17,7 @@ import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
 import { shownHn } from "./hosxp";
-import { fetchAuthen, fetchHbA1c, fetchOpportunities, servicePoint } from "./lab";
+import { fetchAuthen, fetchOpportunities, fetchRlu, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
 import { PatientWatch } from "./patient-watch";
 import { TopbarWindow } from "./topbar-window";
@@ -130,7 +130,15 @@ async function runDemo(cfg: AgentConfig) {
   if (SHOT_DIR) {
     mkdirSync(SHOT_DIR, { recursive: true });
     const bar = new TopbarWindow({ dock: false, offscreen: true });
-    const hba1c = { state: "ok" as const, results: [{ date: "2026-11-05", value: "8.4" }, { date: "2026-04-16", value: "10.1" }, { date: "2025-11-12", value: "6.4" }] };
+    const rlu = {
+      state: "ok" as const,
+      items: [
+        { code: "HBA1C", label: "HbA1c", warn: true, message: "ผู้ป่วยเบาหวาน ไม่ได้ตรวจ HbA1c เกิน 90 วัน", results: [{ date: "2026-04-16", value: "8.4", name: "HbA1c" }, { date: "2025-11-12", value: "10.1", name: "HbA1c" }, { date: "2025-05-20", value: "6.4", name: "HbA1c" }] },
+        { code: "LDL", label: "LDL", warn: false, message: null, results: [{ date: "2026-09-02", value: "96", name: "LDL-C (direct)" }] },
+        { code: "CREATININE", label: "Creatinine", warn: false, message: null, results: [{ date: "2026-10-01", value: "1.02", name: "Creatinine" }, { date: "2026-03-11", value: "0.98", name: "Creatinine" }, { date: "2025-09-30", value: "1.10", name: "Creatinine (enzymatic)" }] },
+        { code: "UACR", label: "Urine albumin/creatinine", warn: false, message: null, results: [] },
+      ],
+    };
     const demoSettings = {
       state: "ok" as const,
       saving: false,
@@ -143,23 +151,23 @@ async function runDemo(cfg: AgentConfig) {
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "OFC" };
     const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
-    bar.update({ hn: DEMO_HN, panel: "hba1c", update: "0.2.0", authen: noAuthen, hba1c, opps });
-    await new Promise((r) => setTimeout(r, 700));
+    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", authen: noAuthen, rlu, opps });
+    await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
-    lab.open({ hn: DEMO_HN, panel: "hba1c", settings: demoSettings, hba1c, opps, authen: noAuthen }, { offscreen: true });
+    lab.open({ hn: DEMO_HN, panel: "rlu", settings: demoSettings, rlu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
     await new Promise((r) => setTimeout(r, 700));
-    writeFileSync(join(SHOT_DIR, "0-hba1c.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "opps", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    writeFileSync(join(SHOT_DIR, "0-rlu.png"), (await lab.capture()).toPNG());
+    lab.open({ hn: DEMO_HN, panel: "opps", settings: demoSettings, rlu, opps, authen: noAuthen }, { offscreen: true });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-opps.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "authen", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "authen", settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "settings", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "settings", settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "ofc", settings: demoSettings, hba1c, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "ofc", settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-ofc.png"), (await lab.capture()).toPNG());
     lab.close();
@@ -186,11 +194,11 @@ app.whenReady().then(async () => {
   if (!cfg.agentKey) log("WARNING: agentKey is empty; the server will reject checks");
 
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
-  // On a new HN it also fetches that patient's last HbA1c results and "จัดเก็บ" opportunities (once per HN).
-  // Their buttons open a separate, centred window.
-  let bar: TopbarStatus = { hn: null, panel: null, update: null, authen: { state: "loading" }, hba1c: { state: "loading" }, opps: { state: "loading" } };
+  // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN).
+  // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
+  let bar: TopbarStatus = { hn: null, panel: null, update: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
-  const view = () => ({ hn: bar.hn, panel: bar.panel!, settings, hba1c: bar.hba1c, opps: bar.opps, authen: bar.authen });
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, settings, rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
     settings = next;
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());
@@ -228,7 +236,7 @@ app.whenReady().then(async () => {
     },
   );
   const topbar = new TopbarWindow({
-    onPanel: (panel) => {
+    onPanel: (panel, x) => {
       if (panel === "settings") {
         settings = { state: "loading" };
         void loadSettings();
@@ -236,7 +244,7 @@ app.whenReady().then(async () => {
       if (panel === "opps" || panel === "ofc") refreshOpps();
       if (panel && (bar.hn || panel === "settings")) {
         setBar({ panel });
-        lab.open(view());
+        lab.open(view(), panel === "rlu" ? { anchor: topbar.below(x ?? 0) } : {});
       } else lab.close();
     },
     onUpdate: () => {
@@ -263,15 +271,15 @@ app.whenReady().then(async () => {
     }
     if (hn === bar.hn) return;
     if (bar.panel !== "settings") lab.close(); // the open results belonged to the previous patient
-    setBar({ hn, authen: { state: "loading" }, hba1c: { state: "loading" }, opps: { state: "loading" } });
+    setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
     if (!hn) return;
     void fetchAuthen(cfg, hn).then((a) => {
       if (bar.hn !== hn) return;
       setBar({ authen: a ? { state: "ok", ...a } : { state: "error" } });
     });
-    void fetchHbA1c(cfg, hn).then((results) => {
+    void fetchRlu(cfg, hn).then((items) => {
       if (bar.hn !== hn) return; // the user already moved to another patient
-      setBar({ hba1c: results ? { state: "ok", results } : { state: "error" } });
+      setBar({ rlu: items ? { state: "ok", items } : { state: "error" } });
     });
     refreshOpps();
   }, HN_POLL_MS);

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Panel, TopbarCommand, TopbarStatus } from "../shared/alert-state";
 import noviceUrl from "../../resources/novice.svg";
-import { lightOf, thaiDate } from "./hba1c";
+import { thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
 import "./topbar.css";
 
@@ -48,7 +48,7 @@ function AuthenBadge({ authen: a, active, onClick }: { authen: TopbarStatus["aut
 }
 
 function Topbar() {
-  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, authen: { state: "loading" }, hba1c: { state: "loading" }, opps: { state: "loading" } });
+  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     window.bkhTop.onStatus(setS);
@@ -72,7 +72,7 @@ function Topbar() {
     );
   }
 
-  const togglePanel = (panel: Panel) => send({ type: "panel", panel: s.panel === panel ? null : panel });
+  const togglePanel = (panel: Panel, x?: number) => send({ type: "panel", panel: s.panel === panel ? null : panel, x });
   // OFC items have their own button; "จัดเก็บ" counts the rest (PP …)
   const oppItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category !== "OFC") : null;
   const ofcItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category === "OFC") : [];
@@ -81,20 +81,32 @@ function Topbar() {
   const oppSum = oppItems ? priceSum(oppItems) : 0;
   const ofcSum = priceSum(ofcItems);
 
-  const light =
-    s.hba1c.state === "ok"
-      ? lightOf(s.hba1c.results)
-      : { tone: "none", why: s.hba1c.state === "loading" ? "กำลังโหลด HbA1c" : "ดึงผล HbA1c ไม่ได้" };
+  // RLU: red when any item warns, green when none does; grey while loading, on error or with no item set in admin
+  const rluWarn = s.rlu.state === "ok" ? s.rlu.items.filter((i) => i.warn) : [];
+  const rluTone = s.rlu.state !== "ok" || s.rlu.items.length === 0 ? "none" : rluWarn.length ? "red" : "green";
+  const rluWhy =
+    s.rlu.state === "loading" ? "กำลังตรวจ RLU"
+    : s.rlu.state === "error" ? "ตรวจ RLU ไม่ได้ (เชื่อมต่อ server ไม่ได้)"
+    : s.rlu.items.length === 0 ? "ยังไม่มีรายการ RLU"
+    : rluWarn.length ? `เตือน: ${rluWarn.map((i) => i.label).join(", ")}`
+    : "ไม่มีรายการที่เข้าเกณฑ์เตือน";
 
   return (
     <div className="bar">
       {hnText}
       {s.hn && <AuthenBadge authen={s.authen} active={s.panel === "authen"} onClick={() => togglePanel("authen")} />}
       {s.hn && (
-        <button className={`lab ${s.panel === "hba1c" ? "active" : ""}`} title={`HbA1c: ${light.why}`} aria-expanded={s.panel === "hba1c"} onClick={() => togglePanel("hba1c")}>
-          {/* key: a new patient or a new result restarts the blink (green 5×, red 10×; see topbar.css) */}
-          <span key={`${s.hn}-${light.tone}`} className={`light ${light.tone}`} />
-          HbA1c
+        <button
+          className={`lab ${s.panel === "rlu" ? "active" : ""}`}
+          title={`RLU (การใช้ LAB อย่างสมเหตุผล): ${rluWhy} · คลิกดูรายการ`}
+          aria-expanded={s.panel === "rlu"}
+          aria-haspopup="dialog"
+          onClick={(e) => togglePanel("rlu", e.currentTarget.getBoundingClientRect().left)}
+        >
+          {/* key: a new patient or a new warning state restarts the blink (green 5×, red 10×; see topbar.css) */}
+          <span key={`${s.hn}-${rluTone}-${rluWarn.length}`} className={`light ${rluTone}`} />
+          RLU
+          {rluWarn.length > 0 && <span className="count">{rluWarn.length}</span>}
         </button>
       )}
       <span className="grow" />

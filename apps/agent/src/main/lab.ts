@@ -1,15 +1,15 @@
 /** Lab lookups for the top bar (through the server; the agent never talks to HIS directly). */
-import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, HbA1cResponseSchema, type AgentAuthenResponse, type AgentOpportunitiesResponse, type HbA1cResponse } from "@bkh/shared";
+import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, AgentRluResponseSchema, type AgentAuthenResponse, type AgentOpportunitiesResponse, type AgentRluResponse } from "@bkh/shared";
 import type { AgentConfig } from "./config";
 
-/** Last 3 HbA1c results of a patient, newest first; null when the server cannot answer. */
-export async function fetchHbA1c(cfg: AgentConfig, hn: string): Promise<HbA1cResponse["results"] | null> {
+/** RLU items of a patient (every active item, admin order, with its last 3 results); null when the server cannot answer. */
+export async function fetchRlu(cfg: AgentConfig, hn: string): Promise<AgentRluResponse["items"] | null> {
   try {
-    const url = `${cfg.serverUrl}/api/agent/hba1c?hn=${encodeURIComponent(hn)}&machine=${encodeURIComponent(cfg.machine)}`;
-    const res = await fetch(url, { headers: { [AGENT_KEY_HEADER]: cfg.agentKey }, signal: AbortSignal.timeout(5000) });
+    const url = `${cfg.serverUrl}/api/agent/rlu?hn=${encodeURIComponent(hn)}&machine=${encodeURIComponent(cfg.machine)}`;
+    const res = await fetch(url, { headers: { [AGENT_KEY_HEADER]: cfg.agentKey }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
-    const parsed = HbA1cResponseSchema.safeParse(await res.json());
-    return parsed.success ? parsed.data.results : null;
+    const parsed = AgentRluResponseSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data.items : null;
   } catch {
     return null;
   }

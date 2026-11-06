@@ -1,53 +1,91 @@
-import { HBA1C_MAX_AGE_DAYS } from "@bkh/shared";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { LabView } from "../shared/alert-state";
-import { daysAgo, lightOf, thaiDate } from "./hba1c";
+import { daysAgo, thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
 import "./lab.css";
 
 declare global {
   interface Window {
-    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; setServicePoint(code: string): void };
+    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; setServicePoint(code: string): void; resize(height: number): void };
   }
 }
 
 const Msg = ({ children }: { children: ReactNode }) => <p className="msg">{children}</p>;
 const ERROR = "ดึงข้อมูลไม่ได้ (เชื่อมต่อ server ไม่ได้)";
+/** lab.css body.drop bottom padding: the shadow below the dropdown card */
+const DROP_PAD = 14;
 
-function HbA1c({ hba1c }: { hba1c: LabView["hba1c"] }) {
-  if (hba1c.state === "loading") return <Msg>กำลังโหลด…</Msg>;
-  if (hba1c.state === "error") return <Msg>{ERROR}</Msg>;
-  if (hba1c.results.length === 0) return <Msg>ยังไม่เคยตรวจ HbA1c</Msg>;
-  const light = lightOf(hba1c.results);
+/** RLU dropdown (anchored under the top bar badge): every item with its light; a row expands to its last 3 results. */
+function Rlu({ v }: { v: LabView }) {
+  const [open, setOpen] = useState<string[]>(() => (v.demoExpand ? [v.demoExpand] : []));
+  const card = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    document.body.classList.add("drop");
+    // the window fits the card (plus the shadow margin below it); the list scrolls past its CSS max-height
+    const ro = new ResizeObserver(() => card.current && window.bkhLab.resize(card.current.getBoundingClientRect().height + DROP_PAD));
+    ro.observe(card.current!);
+    return () => ro.disconnect();
+  }, []);
+  const r = v.rlu;
+  const toggle = (code: string) => setOpen((o) => (o.includes(code) ? o.filter((c) => c !== code) : [...o, code]));
   return (
-    <>
-      <p className={`summary ${light.tone}`}>
-        <span className="dot" />
-        {light.why}
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>วันที่สั่งตรวจ</th>
-            <th>ผ่านมา</th>
-            <th className="num">ผล (%)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {hba1c.results.map((r, i) => (
-            <tr key={i}>
-              <td>
-                {thaiDate(r.date)}
-                {i === 0 && <span className="latest">ล่าสุด</span>}
-              </td>
-              <td className="muted">{daysAgo(r.date)} วัน</td>
-              <td className="num value">{r.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+    <section className="card drop-card" ref={card} role="dialog" aria-labelledby="lab-title">
+      <header className="drop-head">
+        <h1 id="lab-title">
+          RLU <small>การใช้ LAB อย่างสมเหตุผล</small>
+        </h1>
+        <span className="sub">HN {v.hn}</span>
+      </header>
+      {r.state === "loading" ? (
+        <Msg>กำลังตรวจ…</Msg>
+      ) : r.state === "error" ? (
+        <Msg>{ERROR}</Msg>
+      ) : r.items.length === 0 ? (
+        <Msg>ยังไม่มีรายการ RLU (admin เพิ่มได้ที่หน้า admin)</Msg>
+      ) : (
+        <ul className="rlu">
+          {r.items.map((it) => {
+            const tone = it.warn ? "red" : it.results.length ? "green" : "none";
+            const isOpen = open.includes(it.code);
+            return (
+              <li key={it.code} className={tone}>
+                <button className="rlu-row" aria-expanded={isOpen} onClick={() => toggle(it.code)}>
+                  <span className="dot" />
+                  <span className="rlu-text">
+                    <b>{it.label}</b>
+                    {it.warn && it.message && <small>{it.message}</small>}
+                    {!it.warn && !it.results.length && <small className="muted">ไม่มีผลตรวจ</small>}
+                  </span>
+                  <svg className="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d={isOpen ? "M2.5 7.5 6 4l3.5 3.5" : "M2.5 4.5 6 8l3.5-3.5"} />
+                  </svg>
+                </button>
+                {isOpen &&
+                  (it.results.length === 0 ? (
+                    <p className="rlu-none">ยังไม่เคยตรวจ</p>
+                  ) : (
+                    <table className="rlu-results">
+                      <tbody>
+                        {it.results.map((x, i) => (
+                          <tr key={i}>
+                            <td>
+                              {thaiDate(x.date)}
+                              {x.name !== it.label && <span className="lab-name">{x.name}</span>}
+                            </td>
+                            <td className="muted">{daysAgo(x.date)} วัน</td>
+                            <td className="num value">{x.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ))}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -158,8 +196,7 @@ function Settings({ settings: st }: { settings: LabView["settings"] }) {
   );
 }
 
-const PANELS = {
-  hba1c: { title: "HbA1c · 3 ครั้งล่าสุด", foot: `ไฟเขียวเมื่อตรวจครั้งล่าสุดไม่เกิน ${HBA1C_MAX_AGE_DAYS} วัน เกินกว่านั้นเป็นไฟแดง` },
+const PANELS: Record<Exclude<LabView["panel"], "rlu">, { title: string; foot: string }> = {
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
   authen: { title: "Authen · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (visit_pttype.auth_code)" },
@@ -175,6 +212,7 @@ function Lab() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   if (!v) return null;
+  if (v.panel === "rlu") return <Rlu v={v} />;
   const p = PANELS[v.panel];
 
   return (
@@ -191,9 +229,7 @@ function Lab() {
         </button>
       </header>
       <div className="body">
-        {v.panel === "hba1c" ? (
-          <HbA1c hba1c={v.hba1c} />
-        ) : v.panel === "authen" ? (
+        {v.panel === "authen" ? (
           <Authen authen={v.authen} />
         ) : v.panel === "settings" ? (
           <Settings settings={v.settings} />
