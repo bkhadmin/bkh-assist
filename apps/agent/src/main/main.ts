@@ -125,7 +125,7 @@ async function runDemo(cfg: AgentConfig) {
     lab.update({ hn: DEMO_HN, panel: "authen", save, settings: demoSettings, rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, version: app.getVersion(), rlu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
     lab.update({ hn: DEMO_HN, panel: "ofc", save, settings: demoSettings, rlu, opps, authen: noAuthen });
@@ -154,7 +154,7 @@ app.whenReady().then(async () => {
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
   let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
-  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, version: app.getVersion(), rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
     settings = next;
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());

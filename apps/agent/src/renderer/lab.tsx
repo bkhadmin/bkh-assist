@@ -283,6 +283,7 @@ function Lab() {
             v.panel !== "settings" && <p className="sub">HN {v.hn}</p>
           )}
         </div>
+        {v.panel === "settings" && v.version && <span className="ver">เวอร์ชัน {v.version}</span>}
         <button className="close" title="ปิด (Esc)" aria-label="ปิด" onClick={() => window.bkhLab.close()}>
           <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
