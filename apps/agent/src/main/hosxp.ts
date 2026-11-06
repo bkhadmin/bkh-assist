@@ -83,3 +83,12 @@ export function shownHn(): string | null {
   }
   return null;
 }
+
+/**
+ * True when a visible HOSxP runs elevated ("Run as administrator") but this agent does not: Windows then hides
+ * HOSxP's clicks/keys from our low-level hooks, so saves are never seen (the HN can still be read).
+ */
+export function savesHidden(): boolean {
+  if (w.isElevated()) return false;
+  return w.topWindows().some((h) => isHosxpWindow(h) && w.isVisible(h) && w.isProcessElevated(w.processIdOf(h)) === true);
+}

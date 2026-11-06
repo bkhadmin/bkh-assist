@@ -13,8 +13,11 @@ export type AlertState =
   | { kind: "missing"; hn: string | null; module: string; items: AlertItem[]; opportunities: AlertOpportunity[] }
   | { kind: "ambiguous"; hn: string | null; module: string; count: number }
   | { kind: "error"; message: string };
-/** the latest save check of the patient on screen, with the time of the save ("HH:mm") */
-export type SaveCheck = AlertState & { at: string };
+/**
+ * The latest save check, kept for the SAVED patient (HOSxP clears the screen after F9, so it outlives the HN on
+ * screen): time of the save ("HH:mm") and that patient's name (null until fetched / unknown).
+ */
+export type SaveCheck = AlertState & { at: string; name: string | null };
 
 /** Which panel of the lab window is open; "rlu" is a dropdown anchored under its top bar badge. */
 export type Panel = "save" | "rlu" | "opps" | "ofc" | "authen" | "settings";
@@ -30,7 +33,9 @@ export type TopbarStatus = {
   panel: Panel | null;
   /** a newer agent version has been downloaded and can be installed (null = up to date) */
   update: string | null;
-  /** latest save check of this patient: the "บันทึก" badge, red and blinking when data is missing; null = none yet */
+  /** HOSxP runs as Administrator but this agent does not: its saves cannot be seen (red warning badge) */
+  blind: boolean;
+  /** latest save check (of the saved patient, who may have left the screen): red blinking badge when data is missing; null = none */
   save: SaveCheck | null;
   /** RLU (Rational Lab Use) items in admin order; the badge blinks red when any item warns */
   rlu: { state: "loading" } | { state: "error" } | { state: "ok"; items: RluItem[] };

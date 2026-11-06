@@ -34,6 +34,13 @@ const QueryFullProcessImageNameW = kernel32.func(
   "bool __stdcall QueryFullProcessImageNameW(void *h, uint32_t flags, _Out_ uint8_t *buf, _Inout_ uint32_t *size)",
 );
 const IsUserAnAdmin = shell32.func("bool __stdcall IsUserAnAdmin()");
+const advapi32 = koffi.load("advapi32.dll");
+const OpenProcessToken = advapi32.func("bool __stdcall OpenProcessToken(void *process, uint32_t access, _Out_ void **token)");
+const GetTokenInformation = advapi32.func(
+  "bool __stdcall GetTokenInformation(void *token, int infoClass, _Out_ uint32_t *info, uint32_t length, _Out_ uint32_t *returned)",
+);
+const TOKEN_QUERY = 0x0008;
+const TokenElevation = 20;
 
 const WM_GETTEXT = 0x000d;
 const WM_GETTEXTLENGTH = 0x000e;
@@ -56,6 +63,24 @@ export const isVisible = (h: Hwnd): boolean => IsWindowVisible(h);
 /** False once the window has been destroyed (e.g. the HOSxP screen was closed). */
 export const isAlive = (h: Hwnd): boolean => !isNull(h) && IsWindow(h);
 export const isElevated = (): boolean => IsUserAnAdmin();
+
+/** Does process `pid` run elevated ("Run as administrator")? null when it cannot be asked. */
+export function isProcessElevated(pid: number): boolean | null {
+  const p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+  if (isNull(p)) return null;
+  try {
+    const token = [null];
+    if (!OpenProcessToken(p, TOKEN_QUERY, token)) return null;
+    try {
+      const info = [0], ret = [0];
+      return GetTokenInformation(token[0], TokenElevation, info, 4, ret) ? info[0] !== 0 : null;
+    } finally {
+      CloseHandle(token[0]);
+    }
+  } finally {
+    CloseHandle(p);
+  }
+}
 
 export function className(h: Hwnd): string {
   const buf = Buffer.alloc(512);

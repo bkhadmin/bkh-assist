@@ -48,8 +48,11 @@ function AuthenBadge({ authen: a, active, onClick }: { authen: TopbarStatus["aut
 }
 
 /** Latest HOSxP save check: red blinking "ไม่ครบ n" / amber "ควรเพิ่ม n" / green "บันทึกครบ"; click opens the large panel. */
-function SaveBadge({ save: c, active, onClick }: { save: SaveCheck; active: boolean; onClick: () => void }) {
+function SaveBadge({ save: c, screenHn, active, onClick }: { save: SaveCheck; screenHn: string | null; active: boolean; onClick: () => void }) {
   const errors = c.kind === "missing" ? c.items.filter((i) => i.severity === "error").length : 0;
+  // HOSxP clears the screen after saving: name the saved patient when it is not the one on screen
+  const who = c.kind !== "error" && c.hn && c.hn !== screenHn ? c.hn : null;
+  const whoTitle = c.kind !== "error" && c.hn ? `HN ${c.hn}${c.name ? ` ${c.name}` : ""} · ` : "";
   const [tone, mark, text, title] =
     c.kind === "checking" ? ["none", "…", "กำลังตรวจ", "กำลังตรวจการบันทึก"]
     : c.kind === "ok" ? ["green", "✓", "บันทึกครบ", `บันทึกครบถ้วน (${c.at} น.)`]
@@ -58,16 +61,17 @@ function SaveBadge({ save: c, active, onClick }: { save: SaveCheck; active: bool
     : c.kind === "ambiguous" ? ["amber", "?", "ตรวจไม่ได้", "มีหลาย visit ตรวจอัตโนมัติไม่ได้"]
     : ["none", "!", "ตรวจไม่ได้", "ตรวจการบันทึกไม่ได้"];
   return (
-    <button className={`save ${tone} ${active ? "active" : ""}`} title={`${title} · คลิกดูรายละเอียด`} aria-expanded={active} onClick={onClick}>
+    <button className={`save ${tone} ${active ? "active" : ""}`} title={`${whoTitle}${title} · คลิกดูรายละเอียด`} aria-expanded={active} onClick={onClick}>
       {/* key: every new check restarts the blink (red 10×; see topbar.css) */}
       <span key={`${c.at}-${c.kind}`} className="mark" aria-hidden="true">{mark}</span>
+      {who && <span className="who">HN {who}</span>}
       {text}
     </button>
   );
 }
 
 function Topbar() {
-  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
+  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     window.bkhTop.onStatus(setS);
@@ -113,7 +117,16 @@ function Topbar() {
   return (
     <div className="bar">
       {hnText}
-      {s.save && <SaveBadge save={s.save} active={s.panel === "save"} onClick={() => togglePanel("save")} />}
+      {s.blind && (
+        <span
+          className="blind"
+          role="alert"
+          title="HOSxP เปิดแบบ Run as administrator แต่เตือนสติไม่ได้รันด้วยสิทธิ์ Admin จึงมองไม่เห็นการกดบันทึก · ปิดเตือนสติแล้วเปิดใหม่ด้วยสิทธิ์ Admin (ตัวที่ติดตั้งจะรันเป็น Admin เองตอนเข้าเครื่อง) หรือเปิด HOSxP แบบปกติ"
+        >
+          ⚠ ตรวจการบันทึกไม่ได้
+        </span>
+      )}
+      {s.save && <SaveBadge save={s.save} screenHn={s.hn} active={s.panel === "save"} onClick={() => togglePanel("save")} />}
       {s.hn && <AuthenBadge authen={s.authen} active={s.panel === "authen"} onClick={() => togglePanel("authen")} />}
       {s.hn && (
         <button

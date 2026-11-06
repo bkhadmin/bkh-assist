@@ -9,11 +9,11 @@
 import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AlertState, SaveCheck, ServicePoint, TopbarStatus } from "../shared/alert-state";
+import type { AlertState, Panel, SaveCheck, ServicePoint, TopbarStatus } from "../shared/alert-state";
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
-import { shownHn } from "./hosxp";
+import { savesHidden, shownHn } from "./hosxp";
 import { fetchAuthen, fetchOpportunities, fetchRlu, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
 import { TopbarWindow } from "./topbar-window";
@@ -79,6 +79,7 @@ async function runDemo(cfg: AgentConfig) {
     hn: DEMO_HN,
     module: cfg.moduleLabel,
     at: "09:41",
+    name: "นายทดสอบ ระบบเตือนสติ",
     items: [
       { label: "ความดันโลหิต (BP)", severity: "error" },
       { label: "อาการสำคัญ (CC)", severity: "error" },
@@ -111,7 +112,7 @@ async function runDemo(cfg: AgentConfig) {
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "OFC" };
     const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
-    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", save, authen: noAuthen, rlu, opps });
+    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", blind: false, save, authen: noAuthen, rlu, opps });
     await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
@@ -151,7 +152,7 @@ app.whenReady().then(async () => {
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
   // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN).
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
-  let bar: TopbarStatus = { hn: null, panel: null, update: null, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
+  let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
   const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
@@ -178,16 +179,21 @@ app.whenReady().then(async () => {
       refreshOpps();
     }
   };
+  const ownPanel = (p: Panel) => p === "settings" || p === "save";
   const setBar = (patch: Partial<TopbarStatus>) => {
     bar = { ...bar, ...patch };
     topbar.update(bar);
-    if (lab.isOpen() && bar.panel && (bar.hn || bar.panel === "settings")) lab.update(view());
+    if (lab.isOpen() && bar.panel && (bar.hn || ownPanel(bar.panel))) lab.update(view());
   };
   const lab = new LabWindow(
     () => setBar({ panel: null }),
     (code) => {
       if (settings.state === "ok") showSettings({ ...settings, saving: true, saved: false });
       void loadSettings(code);
+    },
+    () => {
+      setBar({ save: null }); // "รับทราบ"
+      lab.close();
     },
   );
   const topbar = new TopbarWindow({
@@ -197,7 +203,7 @@ app.whenReady().then(async () => {
         void loadSettings();
       }
       if (panel === "opps" || panel === "ofc") refreshOpps();
-      if (panel && (bar.hn || panel === "settings")) {
+      if (panel && (bar.hn || ownPanel(panel))) {
         setBar({ panel });
         lab.open(view(), panel === "rlu" ? { anchor: topbar.below(x ?? 0) } : {});
       } else lab.close();
@@ -225,8 +231,8 @@ app.whenReady().then(async () => {
       return log("topbar HN read failed", err);
     }
     if (hn === bar.hn) return;
-    if (bar.panel !== "settings") lab.close(); // the open results belonged to the previous patient
-    setBar({ hn, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
+    if (!bar.panel || !ownPanel(bar.panel)) lab.close(); // the open results belonged to the previous patient
+    setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
     if (!hn) return;
     void fetchAuthen(cfg, hn).then((a) => {
       if (bar.hn !== hn) return;
@@ -240,6 +246,20 @@ app.whenReady().then(async () => {
   }, HN_POLL_MS);
 
   if (!w.isElevated()) log("WARNING: not running as Administrator; saves in an elevated HOSxP are not seen");
+  // Say so on the top bar instead of failing silently (checked every few seconds: HOSxP may be restarted elevated).
+  const checkBlind = () => {
+    try {
+      const blind = savesHidden();
+      if (blind !== bar.blind) {
+        log(blind ? "WARNING: HOSxP runs as Administrator, this agent does not: saves are not seen" : "saves visible again");
+        setBar({ blind });
+      }
+    } catch (err) {
+      log("elevation check failed", err);
+    }
+  };
+  checkBlind();
+  setInterval(checkBlind, 10_000);
   if (!(await checker.health())) log("WARNING: server not reachable at start");
   await modules.refresh();
   log(`modules from ${modules.source}: ${modules.list().map((m) => m.code).join(", ") || "(none)"}`);
@@ -248,15 +268,34 @@ app.whenReady().then(async () => {
   const watcher = new SaveWatcher();
   // Save results show only on the top bar: the "บันทึก" badge (click = large panel). A result stays while its patient
   // is on screen; the HN poll above clears it when the user moves to another patient.
+  // The save result belongs to the SAVED patient: HOSxP clears the screen right after F9, before the check returns.
+  // It stays on the bar until the next save replaces it or the user presses "รับทราบ"; "ok" clears itself.
+  const OK_CLEAR_MS = 15_000;
+  let saveName: { hn: string; name: string | null } | null = null;
   const showSave = (ev: SaveEvent, state: AlertState | null) => {
-    if (ev.hn && bar.hn && ev.hn !== bar.hn) return; // a late result for a patient no longer on screen
-    setBar({ save: state && { ...state, at: ev.savedAt.toTimeString().slice(0, 5) } });
+    const at = ev.savedAt.toTimeString().slice(0, 5);
+    const name = saveName && saveName.hn === ev.hn ? saveName.name : null;
+    setBar({ save: state && { ...state, at, name } });
+    if (state?.kind === "ok") {
+      setTimeout(() => bar.save?.kind === "ok" && bar.save.at === at && bar.save.hn === ev.hn && setBar({ save: null }), OK_CLEAR_MS);
+    }
   };
   watcher.on("save", async (ev) => {
     const mod = modules.pick(ev.form);
     log(`save trigger=${ev.trigger} form=${ev.form} hn=${ev.hn ? "yes" : "no"} module=${mod?.code ?? "(none: not checked)"}`);
     if (!mod) return; // this machine does not check this HOSxP screen
     showSave(ev, { kind: "checking", hn: ev.hn, module: mod.label });
+    if (ev.hn) {
+      // the patient's name for the badge/panel (the screen no longer shows it); same call as the Authen badge
+      const hn = ev.hn;
+      saveName = { hn, name: bar.hn === hn && bar.authen.state === "ok" ? bar.authen.name : null };
+      if (!saveName.name)
+        void fetchAuthen(cfg, hn).then((a) => {
+          if (saveName?.hn !== hn) return;
+          saveName.name = a?.name ?? null;
+          if (bar.save && bar.save.kind !== "error" && bar.save.hn === hn) setBar({ save: { ...bar.save, name: saveName.name } });
+        });
+    }
     const outcome = await checker.check({ module: mod.code, hn: ev.hn, savedAt: ev.savedAt });
     if (outcome.kind === "cancelled") return; // a newer save took over
     if (outcome.kind === "denied") {

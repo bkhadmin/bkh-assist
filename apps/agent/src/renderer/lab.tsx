@@ -7,7 +7,7 @@ import "./lab.css";
 
 declare global {
   interface Window {
-    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; setServicePoint(code: string): void; resize(height: number): void };
+    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; ack(): void; setServicePoint(code: string): void; resize(height: number): void };
   }
 }
 
@@ -253,7 +253,11 @@ function Lab() {
       <header className="head" title="ลากเพื่อย้าย">
         <div>
           <h1 id="lab-title">{p.title}</h1>
-          {v.panel !== "settings" && <p className="sub">HN {v.hn}</p>}
+          {v.panel === "save" ? (
+            v.save && v.save.kind !== "error" && v.save.hn && <p className="sub">HN {v.save.hn}{v.save.name ? ` · ${v.save.name}` : ""}</p>
+          ) : (
+            v.panel !== "settings" && <p className="sub">HN {v.hn}</p>
+          )}
         </div>
         <button className="close" title="ปิด (Esc)" aria-label="ปิด" onClick={() => window.bkhLab.close()}>
           <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -276,6 +280,13 @@ function Lab() {
         <div className="total">
           <span>รวมค่าบริการที่จัดเก็บได้</span>
           <b>{baht(priceSum(panelItems(v.opps, v.panel === "ofc")))}</b>
+        </div>
+      )}
+      {v.panel === "save" && v.save && v.save.kind !== "checking" && (
+        <div className="actions save-ack">
+          <button className="primary" onClick={() => window.bkhLab.ack()}>
+            รับทราบ
+          </button>
         </div>
       )}
       <footer className="foot">{p.foot}</footer>

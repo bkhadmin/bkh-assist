@@ -119,3 +119,10 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
 .save.red { background: #d93a2b; }
 .save.red:hover, .save.red.active { background: #b92e21; }
 .save.red .mark { background: #ffffff; color: #d93a2b; animation: blink 0.6s ease-in-out 10; }
+
+/* HOSxP runs as Administrator but the agent does not: saves are invisible to us */
+.blind {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; color: #ffffff; background: #d93a2b; cursor: help;
+}
+.save .who { font-weight: 600; opacity: 0.9; }

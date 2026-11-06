@@ -20,9 +20,13 @@ export class LabWindow {
   private panel: Panel | null = null;
 
   /** onClosed: the window is gone (✕, Esc, blur of the dropdown or closed by the agent) */
-  constructor(private onClosed: () => void, onServicePoint?: (code: string) => void) {
+  constructor(private onClosed: () => void, onServicePoint?: (code: string) => void, onAck?: () => void) {
     ipcMain.on("lab:close", (e) => {
       if (this.win && e.sender === this.win.webContents) this.close();
+    });
+    // "รับทราบ" in the save panel: the user has seen the save result
+    ipcMain.on("lab:ack", (e) => {
+      if (this.win && e.sender === this.win.webContents) onAck?.();
     });
     ipcMain.on("lab:service-point", (e, code: unknown) => {
       if (this.win && e.sender === this.win.webContents && typeof code === "string") onServicePoint?.(code);

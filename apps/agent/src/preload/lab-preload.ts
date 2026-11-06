@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld("bkhLab", {
     ipcRenderer.send("lab:close");
   },
   /** settings panel: make this module the machine's service point */
+  /** save panel: "รับทราบ" clears the save result from the top bar */
+  ack() {
+    ipcRenderer.send("lab:ack");
+  },
   setServicePoint(code: string) {
     ipcRenderer.send("lab:service-point", code);
   },
