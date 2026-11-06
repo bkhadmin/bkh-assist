@@ -53,7 +53,7 @@ export const OpportunitySchema = z.object({
   category: z.string(),
   /** message shown to staff, e.g. "คัดกรองมะเร็งปากมดลูก" */
   label: z.string(),
-  /** baht, sum of the HOSxP prices of its icodes; null/absent = no icode set (agent endpoint only) */
+  /** baht: the admin manual price (e.g. an NHSO lump sum), else the sum of the HOSxP prices of its icodes; null/absent = neither set (agent endpoint only) */
   price: z.number().nullable().optional(),
 });
 export type Opportunity = z.infer<typeof OpportunitySchema>;

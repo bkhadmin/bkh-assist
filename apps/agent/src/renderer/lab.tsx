@@ -143,7 +143,7 @@ function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
         <li key={i}>
           <span className="cat">{o.category}</span>
           <span className="label">{o.label}</span>
-          {o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้ง icode ค่าบริการในหน้า admin">–</span>}
+          {o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้งราคา (icode หรือราคาเหมาจ่าย) ในหน้า admin">–</span>}
         </li>
       ))}
     </ul>
