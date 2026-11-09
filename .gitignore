@@ -24,3 +24,4 @@ apps/agent/release/
 
 # local screenshots and scratch output
 tmp/
+DEPLOY_GUIDE.md
