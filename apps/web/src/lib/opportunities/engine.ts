@@ -2,6 +2,7 @@ import "server-only";
 import type { Opportunity } from "@bkh/shared";
 import { hisQuery } from "@/lib/his";
 import { matches, type Condition } from "./conditions";
+import { opportunityDetail } from "./detail";
 import { getSource } from "./sources";
 
 export type OpportunityDef = Opportunity & { conditions: Condition[]; icodes?: string[] };
@@ -13,8 +14,9 @@ type Row = Record<string, string | number | null>;
  * first failing condition, so cheap patient filters (age, sex) placed first skip the history queries.
  * Each distinct source+codes query runs at most once per check, sequentially (one HIS connection at a time).
  * Never throws: an opportunity whose query fails is skipped and logged, the validation result is not affected.
+ * `visitDate` ("YYYY-MM-DD", default today) dates the detail (last done, fiscal year end) of each match.
  */
-export async function evaluateOpportunities(defs: OpportunityDef[], vn: string): Promise<Opportunity[]> {
+export async function evaluateOpportunities(defs: OpportunityDef[], vn: string, visitDate = new Date().toLocaleDateString("en-CA")): Promise<Opportunity[]> {
   const cache = new Map<string, Promise<Row | null>>();
   const fetchRow = (c: Condition) => {
     const key = `${c.source}|${(c.codes ?? []).join(",")}`;
@@ -33,6 +35,7 @@ export async function evaluateOpportunities(defs: OpportunityDef[], vn: string):
     try {
       if (def.conditions.length === 0) continue; // an opportunity without conditions would match every visit
       let ok = true;
+      const rows: (Row | null)[] = [];
       for (const c of def.conditions) {
         const src = getSource(c.source);
         const col = src?.columns.find((x) => x.name === c.column);
@@ -41,12 +44,13 @@ export async function evaluateOpportunities(defs: OpportunityDef[], vn: string):
           break;
         }
         const row = await fetchRow(c);
+        rows.push(row);
         if (!row || !matches(c, row[c.column], col.type === "number")) {
           ok = false;
           break;
         }
       }
-      if (ok) hits.push({ code: def.code, category: def.category, label: def.label });
+      if (ok) hits.push({ code: def.code, category: def.category, label: def.label, detail: opportunityDetail(def.conditions, rows, visitDate) });
     } catch (err) {
       const cause = err instanceof Error ? (err.cause ?? err) : err;
       console.error("[opportunities]", JSON.stringify({ vn, opportunity: def.code, error: (cause as { code?: string })?.code ?? String(cause) }));

@@ -55,6 +55,17 @@ export const OpportunitySchema = z.object({
   label: z.string(),
   /** baht: the admin manual price (e.g. an NHSO lump sum), else the sum of the HOSxP prices of its icodes; null/absent = neither set (agent endpoint only) */
   price: z.number().nullable().optional(),
+  /** why it matched, derived from its conditions (agent endpoint; absent from older servers) */
+  detail: z
+    .object({
+      /** e.g. "อายุ 62 ปี", "GA 30 สัปดาห์"; null = no age/GA condition */
+      basis: z.string().nullable(),
+      /** last done "YYYY-MM-DD"; null = never done; absent = the item has no history (days_since) condition */
+      lastDone: z.string().nullable().optional(),
+      /** deadline: a "YYYY-MM-DD" date (fiscal year end) or a text such as "ก่อนอายุครบ 71 ปี"; null = none */
+      due: z.string().nullable(),
+    })
+    .optional(),
 });
 export type Opportunity = z.infer<typeof OpportunitySchema>;
 

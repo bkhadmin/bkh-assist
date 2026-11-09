@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import type { LabView } from "../shared/alert-state";
+import type { Opportunity } from "@bkh/shared";
+import type { AlertOpportunity, LabView } from "../shared/alert-state";
 import { daysAgo, thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
 import "./lab.css";
@@ -121,9 +122,20 @@ function Rlu({ v }: { v: LabView }) {
   );
 }
 
-/** "งาน PP" (every category but OFC) or the OFC list. */
 /** Items of the "งาน PP" (non-OFC) or "OFC" panel. */
 const panelItems = (opps: LabView["opps"], ofc: boolean) => (opps.state === "ok" ? opps.items.filter((o) => (o.category === "OFC") === ofc) : []);
+
+/** ["เข้าเกณฑ์: อายุ 62 ปี", "ทำล่าสุด: 5 พ.ย. 69 (120 วันก่อน)", "ต้องทำภายใน: 30 ก.ย. 70"]; empty when the server sent no detail. */
+function oppDetail(o: AlertOpportunity): string[] {
+  // the server's Opportunity.detail passes through main untouched; AlertOpportunity does not declare it
+  const d = (o as Opportunity).detail;
+  const parts: string[] = [];
+  if (!d) return parts;
+  if (d.basis) parts.push(`เข้าเกณฑ์: ${d.basis}`);
+  if (d.lastDone !== undefined) parts.push(`ทำล่าสุด: ${d.lastDone ? `${thaiDate(d.lastDone)} (${daysAgo(d.lastDone)} วันก่อน)` : "ไม่เคย"}`);
+  if (d.due) parts.push(/^\d{4}-\d{2}-\d{2}$/.test(d.due) ? `ต้องทำภายใน: ${thaiDate(d.due)}` : `ต้องทำ${d.due}`);
+  return parts;
+}
 
 function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
   if (opps.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
@@ -142,7 +154,16 @@ function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
       {items.map((o, i) => (
         <li key={i}>
           <span className="cat">{o.category}</span>
-          <span className="label">{o.label}</span>
+          <span className="label">
+            {o.label}
+            {oppDetail(o).length > 0 && (
+              <small className="detail">
+                {oppDetail(o).map((p) => (
+                  <span key={p}>{p}</span>
+                ))}
+              </small>
+            )}
+          </span>
           {o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้งราคา (icode หรือราคาเหมาจ่าย) ในหน้า admin">–</span>}
         </li>
       ))}
