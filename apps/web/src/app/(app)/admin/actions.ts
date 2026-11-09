@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { assistExecute, assistQuery, assistTransaction } from "@/lib/assist";
 import { ConditionSchema, NO_VALUE_OPS, type Condition } from "@/lib/opportunities/conditions";
 import { getSource } from "@/lib/opportunities/sources";
+import { RDU_RULES } from "@/lib/rdu/rules";
 import { getModule } from "@/lib/rules/modules";
 
 /**
@@ -348,5 +349,18 @@ export async function saveModuleOpportunities(input: z.input<typeof ModuleOpport
   });
   if (!found) return fail("ไม่พบ module นี้");
   revalidatePath("/admin", "layout");
+  return { ok: true };
+}
+
+/** RDU rule on/off. The rules live in code (apps/web/src/lib/rdu/rules.ts); a rule without a row is on. */
+export async function setRduActive(code: string, isActive: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  if (!RDU_RULES.some((r) => r.code === code)) return fail("ไม่พบกฎนี้");
+  await assistExecute(
+    `INSERT INTO rdu_settings (rule_code, is_active) VALUES ($1, $2)
+     ON CONFLICT (rule_code) DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = now()`,
+    [code, Boolean(isActive)],
+  );
+  revalidatePath("/admin/rdu");
   return { ok: true };
 }
