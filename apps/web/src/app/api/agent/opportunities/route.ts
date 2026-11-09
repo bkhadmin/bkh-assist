@@ -7,7 +7,7 @@ import { evaluateOpportunities, type OpportunityDef } from "@/lib/opportunities/
 const error = (status: number, body: ApiError) => Response.json(body, { status });
 
 /** The patient's latest visit. Proven on bkhosxp 2026-11-06: ref on ovst.ix_hn (~100 rows per patient). */
-const LATEST_VISIT = "SELECT vn FROM ovst WHERE hn = ? ORDER BY vstdate DESC, vsttime DESC LIMIT 1";
+const LATEST_VISIT = "SELECT vn, vstdate FROM ovst WHERE hn = ? ORDER BY vstdate DESC, vsttime DESC LIMIT 1";
 
 /** Item prices: nondrugitems.price / drugitems.unitprice, both keyed by icode (primary key). */
 // shortcut: base price only, not the per-pttype price; switch to the pttype price table if finance needs the billed amount.
@@ -56,8 +56,8 @@ export async function GET(req: Request) {
     const defs = new Map<string, OpportunityDef>();
     if (cfg.active) for (const m of cfg.modules) for (const d of await moduleOpportunities(m.code)) defs.set(d.code, d);
 
-    const [visit] = defs.size ? await hisQuery<{ vn: string }>(LATEST_VISIT, [hn]) : [];
-    const items = visit ? await withPrices(await evaluateOpportunities([...defs.values()], String(visit.vn)), defs) : [];
+    const [visit] = defs.size ? await hisQuery<{ vn: string; vstdate: string }>(LATEST_VISIT, [hn]) : [];
+    const items = visit ? await withPrices(await evaluateOpportunities([...defs.values()], String(visit.vn), visit.vstdate), defs) : [];
     const body: AgentOpportunitiesResponse = { hn, vn: visit ? String(visit.vn) : null, items };
     return Response.json(body);
   } catch (err) {
