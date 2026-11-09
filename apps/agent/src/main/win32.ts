@@ -88,16 +88,17 @@ export function className(h: Hwnd): string {
   return buf.toString("utf16le", 0, n * 2);
 }
 
-/** Window/control text via WM_GETTEXT with a short timeout, so a hung HOSxP never blocks us. */
-export function windowText(h: Hwnd, maxChars = 300): string {
+/** Window/control text via WM_GETTEXT with a short timeout, so a hung HOSxP never blocks us; null when it did not answer. */
+export function windowTextOrNull(h: Hwnd, maxChars = 300): string | null {
   const res = [0];
-  if (!SendMessageTimeoutW(h, WM_GETTEXTLENGTH, 0, null, SMTO_ABORTIFHUNG, 200, res)) return "";
+  if (!SendMessageTimeoutW(h, WM_GETTEXTLENGTH, 0, null, SMTO_ABORTIFHUNG, 200, res)) return null;
   const len = Math.min(Number(res[0]), maxChars);
   if (len <= 0) return "";
   const buf = Buffer.alloc((len + 1) * 2);
-  if (!SendMessageTimeoutW(h, WM_GETTEXT, len + 1, buf, SMTO_ABORTIFHUNG, 200, res)) return "";
+  if (!SendMessageTimeoutW(h, WM_GETTEXT, len + 1, buf, SMTO_ABORTIFHUNG, 200, res)) return null;
   return buf.toString("utf16le", 0, Number(res[0]) * 2);
 }
+export const windowText = (h: Hwnd, maxChars = 300): string => windowTextOrNull(h, maxChars) ?? "";
 
 export function rectOf(h: Hwnd): Rect {
   const r: Rect = { left: 0, top: 0, right: 0, bottom: 0 };
