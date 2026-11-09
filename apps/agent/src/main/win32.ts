@@ -144,3 +144,86 @@ export function processExe(pid: number): string {
   exeCache.set(pid, name);
   return name;
 }
+
+// --- Checkbox state from pixels (ported from TopStickly electron/hosxp.js isChecked) ---
+// DevExpress checkboxes answer 0 to BM_GETCHECK and expose no CHECKED state, so we read how the control paints
+// itself: PrintWindow into a 32-bit DIB (works even when HOSxP is covered), then classifyCheckGlyph.
+const gdi32 = koffi.load("gdi32.dll");
+koffi.struct("BITMAPINFOHEADER", {
+  biSize: "uint32", biWidth: "int32", biHeight: "int32", biPlanes: "uint16", biBitCount: "uint16", biCompression: "uint32",
+  biSizeImage: "uint32", biXPelsPerMeter: "int32", biYPelsPerMeter: "int32", biClrUsed: "uint32", biClrImportant: "uint32",
+});
+const PrintWindow = user32.func("bool __stdcall PrintWindow(void *hwnd, void *hdc, uint32_t flags)");
+const GetDC = user32.func("void * __stdcall GetDC(void *hwnd)");
+const ReleaseDC = user32.func("int __stdcall ReleaseDC(void *hwnd, void *hdc)");
+const CreateCompatibleDC = gdi32.func("void * __stdcall CreateCompatibleDC(void *hdc)");
+const CreateCompatibleBitmap = gdi32.func("void * __stdcall CreateCompatibleBitmap(void *hdc, int w, int h)");
+const SelectObject = gdi32.func("void * __stdcall SelectObject(void *hdc, void *obj)");
+const DeleteObject = gdi32.func("bool __stdcall DeleteObject(void *obj)");
+const DeleteDC = gdi32.func("bool __stdcall DeleteDC(void *hdc)");
+const GetDIBits = gdi32.func(
+  "int __stdcall GetDIBits(void *hdc, void *bmp, uint32_t start, uint32_t lines, _Out_ uint8_t *bits, BITMAPINFOHEADER *bi, uint32_t usage)",
+);
+const WM_NULL = 0x0000;
+
+/**
+ * Ticked state of a checkbox from a top-down 32-bit BGRA capture of the whole control (glyph left, caption right).
+ * true = ticked, false = empty, null = can't tell (nothing painted, no glyph box found).
+ * Glyph box = bounding box of the strokes clearly darker (median - 40) than the glyph column's median luminance;
+ * inside it (30% in from each side, clear of the border) an empty box is flat even when tinted on hover/press,
+ * a check mark gives a spread > 60.
+ */
+export function classifyCheckGlyph(bits: Uint8Array, width: number, height: number): boolean | null {
+  const gw = Math.min(width, Math.round(height * 0.6)); // the glyph column only, not the caption
+  const lum = (x: number, y: number) => {
+    const o = (y * width + x) * 4, b = bits[o], g = bits[o + 1], r = bits[o + 2];
+    return b || g || r ? 0.114 * b + 0.587 * g + 0.299 * r : null; // pure black = unpainted
+  };
+  const all: number[] = [];
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < gw; x++) {
+      const l = lum(x, y);
+      if (l !== null) all.push(l);
+    }
+  if (!all.length) return null;
+  const median = all.sort((a, b) => a - b)[all.length >> 1];
+
+  let x0 = gw, y0 = height, x1 = -1, y1 = -1;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < gw; x++) {
+      const l = lum(x, y);
+      if (l !== null && l < median - 40) (x0 = Math.min(x0, x)), (y0 = Math.min(y0, y)), (x1 = Math.max(x1, x)), (y1 = Math.max(y1, y));
+    }
+  if (x1 - x0 < 6 || y1 - y0 < 6) return null;
+
+  const ix = Math.ceil((x1 - x0) * 0.3), iy = Math.ceil((y1 - y0) * 0.3);
+  let lo = 255, hi = 0;
+  for (let y = y0 + iy; y <= y1 - iy; y++)
+    for (let x = x0 + ix; x <= x1 - ix; x++) {
+      const l = lum(x, y);
+      if (l !== null) (lo = Math.min(lo, l)), (hi = Math.max(hi, l));
+    }
+  return hi - lo > 60;
+}
+
+/** Ticked state of a (DevExpress) checkbox window from its pixels; null = can't tell (HOSxP hung, nothing painted). */
+export function isCheckedByPixels(h: Hwnd): boolean | null {
+  // PrintWindow has no timeout: ping first so a hung HOSxP never blocks our main thread
+  if (!SendMessageTimeoutW(h, WM_NULL, 0, null, SMTO_ABORTIFHUNG, 200, [0])) return null;
+  const r = rectOf(h), width = r.right - r.left, height = r.bottom - r.top;
+  if (width <= 0 || height <= 0 || width * height > 4_000_000) return null;
+  const screen = GetDC(null), mem = CreateCompatibleDC(screen), bmp = CreateCompatibleBitmap(screen, width, height);
+  const old = SelectObject(mem, bmp);
+  const ok = PrintWindow(h, mem, 0);
+  SelectObject(mem, old);
+  const bits = Buffer.alloc(width * height * 4);
+  const header = {
+    biSize: 40, biWidth: width, biHeight: -height /* top-down rows */, biPlanes: 1, biBitCount: 32, biCompression: 0,
+    biSizeImage: 0, biXPelsPerMeter: 0, biYPelsPerMeter: 0, biClrUsed: 0, biClrImportant: 0,
+  };
+  const lines = GetDIBits(mem, bmp, 0, height, bits, header, 0);
+  DeleteObject(bmp);
+  DeleteDC(mem);
+  ReleaseDC(null, screen);
+  return ok && lines ? classifyCheckGlyph(bits, width, height) : null;
+}

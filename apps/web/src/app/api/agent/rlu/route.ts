@@ -27,7 +27,15 @@ const RESULTS = (n: number) => `SELECT code, date, value, name FROM (
     WHERE h.hn = ? AND h.confirm_report = 'Y' AND TRIM(lo.lab_order_result) <> ''
   ) t WHERE rn <= 3 ORDER BY order_date DESC, order_time DESC`;
 
+/**
+ * Names of the items' lab codes, for the agent to match HOSxP lab-order checkbox captions (lab_items_name + optional
+ * " ?"). Proven on bkhosxp 2026-11-09 (16 codes): 5 ms, range on lab_items ix_code_tmlt.
+ */
+const NAMES = (n: number) =>
+  `SELECT lab_items_code AS code, TRIM(lab_items_name) AS name FROM lab_items WHERE lab_items_code IN (${Array(n).fill("?").join(", ")})`;
+
 type ItemRow = { code: string; label: string; lab_codes: string[]; conditions: Condition[]; message: string | null };
+type NameRow = { code: string | number; name: string | null };
 type ResultRow = { code: string | number; date: string; value: string; name: string | null };
 
 /**
@@ -56,9 +64,10 @@ export async function GET(req: Request) {
 
   try {
     const codes = [...new Set(defs.flatMap((d) => d.lab_codes))];
-    const [results, [visit]] = await Promise.all([
+    const [results, [visit], names] = await Promise.all([
       hisQuery<ResultRow>(RESULTS(codes.length), [...codes, hn]),
       hisQuery<{ vn: string }>(LATEST_VISIT, [hn]),
+      hisQuery<NameRow>(NAMES(codes.length), codes),
     ]);
     const vn = visit ? String(visit.vn) : null;
     // category is unused here; evaluateOpportunities skips items without conditions (never warn)
@@ -70,6 +79,7 @@ export async function GET(req: Request) {
       label: d.label,
       warn: warned.has(d.code),
       message: d.message,
+      labNames: names.filter((n) => n.name && d.lab_codes.includes(String(n.code))).map((n) => n.name as string),
       // rows are newest first, so the first 3 of this item's codes are its last 3
       results: results
         .filter((r) => d.lab_codes.includes(String(r.code)))
