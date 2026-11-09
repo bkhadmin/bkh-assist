@@ -111,7 +111,7 @@ async function runDemo(cfg: AgentConfig) {
       ],
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "UCS", close: null };
-    const opps = { state: "ok" as const, items: [{ code: "PP.ELDER_CVD", category: "PP", label: "ประเมินความเสี่ยงโรคหัวใจและหลอดเลือด", price: 150 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
+    const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
     bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", blind: false, save, authen: noAuthen, rlu, opps });
     await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());

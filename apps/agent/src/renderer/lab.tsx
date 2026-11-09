@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import type { Opportunity } from "@bkh/shared";
 import type { AlertOpportunity, LabView } from "../shared/alert-state";
 import { daysAgo, thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
@@ -127,8 +126,7 @@ const panelItems = (opps: LabView["opps"], ofc: boolean) => (opps.state === "ok"
 
 /** ["เข้าเกณฑ์: อายุ 62 ปี", "ทำล่าสุด: 5 พ.ย. 69 (120 วันก่อน)", "ต้องทำภายใน: 30 ก.ย. 70"]; empty when the server sent no detail. */
 function oppDetail(o: AlertOpportunity): string[] {
-  // the server's Opportunity.detail passes through main untouched; AlertOpportunity does not declare it
-  const d = (o as Opportunity).detail;
+  const d = o.detail;
   const parts: string[] = [];
   if (!d) return parts;
   if (d.basis) parts.push(`เข้าเกณฑ์: ${d.basis}`);

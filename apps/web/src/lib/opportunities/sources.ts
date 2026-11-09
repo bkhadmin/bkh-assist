@@ -57,6 +57,8 @@ const LAB_NUM = `NULLIF(REGEXP_SUBSTR(REGEXP_REPLACE(TRIM(lo.lab_order_result), 
 
 const LAB_COLUMNS: SourceColumn[] = [
   ...HISTORY_COLUMNS,
+  // RLU "already done, do not re-order": an order placed in THIS visit must not count as the earlier test
+  { name: "days_since_prev", label: "จำนวนวันนับจากครั้งล่าสุด ไม่นับที่สั่งใน visit นี้ (ว่าง = ไม่เคย)", type: "number" },
   { name: "last_value", label: "ผลล่าสุดที่รายงานแล้ว (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
   { name: "prev_value", label: "ค่าผลครั้งก่อนหน้า (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
   { name: "prev2_value", label: "ค่าผลก่อนหน้า 2 ครั้ง (ตัวเลข; ว่าง = ไม่มี/ไม่ใช่ตัวเลข)", type: "number" },
@@ -83,6 +85,7 @@ const LAB_COLUMNS: SourceColumn[] = [
  * (Results here are almost always clean numbers; the parse matters for sites that file ">90".)
  */
 const labHistory = (match: string) => `SELECT DATEDIFF(x.vstdate, MAX(x.order_date)) AS days_since,
+    DATEDIFF(x.vstdate, MAX(CASE WHEN x.order_vn <> x.vn THEN x.order_date END)) AS days_since_prev,
     COUNT(DISTINCT CASE WHEN x.in_fy THEN x.lab_order_number END) AS count_fy,
     MAX(CASE WHEN x.rn = 1 THEN x.val END) AS last_value,
     MAX(CASE WHEN x.rn = 2 THEN x.val END) AS prev_value,
@@ -90,7 +93,7 @@ const labHistory = (match: string) => `SELECT DATEDIFF(x.vstdate, MAX(x.order_da
     DATEDIFF(MAX(CASE WHEN x.rn = 1 THEN x.order_date END), MAX(CASE WHEN x.rn = 2 THEN x.order_date END)) AS days_last_prev,
     DATEDIFF(MAX(CASE WHEN x.rn = 2 THEN x.order_date END), MAX(CASE WHEN x.rn = 3 THEN x.order_date END)) AS days_prev_prev2,
     TIMESTAMPDIFF(MONTH, x.birthday, MAX(x.order_date)) AS age_m_last
-  FROM (SELECT o.vn, o.vstdate, p.birthday, h.order_date, h.lab_order_number, h.order_date >= ${FY_START} AS in_fy,
+  FROM (SELECT o.vn, o.vstdate, p.birthday, h.vn AS order_vn, h.order_date, h.lab_order_number, h.order_date >= ${FY_START} AS in_fy,
           ${LAB_NUM} AS val,
           CASE WHEN ${LAB_REPORTED} THEN ROW_NUMBER() OVER (PARTITION BY ${LAB_REPORTED}
             ORDER BY h.order_date DESC, h.order_time DESC, h.lab_order_number DESC) END AS rn

@@ -1,10 +1,10 @@
-import type { AgentAuthenResponse, RluItem } from "@bkh/shared";
+import type { AgentAuthenResponse, Opportunity, RluItem } from "@bkh/shared";
 
 /** A missing / should-have field of a save check. Never contains names/CID. */
 export type AlertItem = { label: string; severity: "error" | "warning" };
 /** Add-on service hint (patient qualifies for a billable service). Not missing data. */
 /** price: baht from the HOSxP items set in admin; null/absent = no icode set */
-export type AlertOpportunity = { category: string; label: string; price?: number | null };
+export type AlertOpportunity = { category: string; label: string; price?: number | null; detail?: Opportunity["detail"] };
 
 /** Result of a HOSxP save check. Shown only on the top bar ("บันทึก" badge) and its large panel. */
 export type AlertState =
