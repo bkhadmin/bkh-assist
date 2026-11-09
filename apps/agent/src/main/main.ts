@@ -9,12 +9,13 @@
 import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AlertState, Panel, SaveCheck, ServicePoint, TopbarStatus } from "../shared/alert-state";
+import type { RduHit } from "@bkh/shared";
+import type { AlertState, LabView, Panel, SaveCheck, ServicePoint, TopbarStatus, Warning } from "../shared/alert-state";
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
-import { savesHidden, shownHn } from "./hosxp";
-import { fetchAuthen, fetchOpportunities, fetchRlu, servicePoint } from "./lab";
+import { savesHidden, shownDrug, shownHn } from "./hosxp";
+import { fetchAuthen, fetchOpportunities, fetchRdu, fetchRlu, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
 import { TopbarWindow } from "./topbar-window";
 import { trayIcon } from "./tray-icon";
@@ -70,6 +71,24 @@ function toAlert(moduleLabel: string, ev: SaveEvent, outcome: CheckOutcome): Ale
   return null;
 }
 
+let warnWin: LabWindow | null = null;
+/**
+ * Warning popup for any module (RDU before a drug is saved, lab-tick, …): centred, always on top and shown without
+ * taking focus from HOSxP (the user is typing there). A newer warning replaces the open one; "รับทราบ", ✕ or Esc closes it.
+ * Call after the app is ready.
+ */
+export function showWarning(warning: Warning, opts: { offscreen?: boolean } = {}) {
+  warnWin ??= new LabWindow(() => {}, undefined, () => warnWin?.close());
+  const none = { state: "loading" } as const;
+  const view: LabView = { hn: warning.hn, panel: "warn", warning, save: null, settings: none, rlu: none, rdu: none, opps: none, authen: none };
+  if (warnWin.isOpen()) warnWin.update(view);
+  else warnWin.open(view, { inactive: true, ...opts });
+}
+
+/** Warning lines for RDU hits of a drug not saved yet: "• <rule>: <drug strength>", then the rule's criteria. */
+const drugLabel = (d: RduHit["drugs"][number]) => [d.name, d.strength].filter(Boolean).join(" ");
+const rduLines =(hits: RduHit[]) => hits.flatMap((h) => [`• ${h.label}: ${h.drugs.filter((d) => d.pending).map(drugLabel).join(", ")}`, h.criteria]);
+
 /** Made-up HN for the demo; never put a real patient number in source. */
 const DEMO_HN = "0001234";
 
@@ -112,29 +131,44 @@ async function runDemo(cfg: AgentConfig) {
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "UCS", close: null };
     const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
-    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", blind: false, save, authen: noAuthen, rlu, opps });
+    const rdu = {
+      state: "ok" as const,
+      hits: [
+        { code: "RDU.URI_ABX", label: "URI/หลอดลมอักเสบเฉียบพลัน ได้ยาปฏิชีวนะ", criteria: "ICD-10 J00–J06, J20–J21 ไม่ควรได้ยาปฏิชีวนะ (เป้าหมาย ≤ 20%)", drugs: [{ name: "Amoxicillin", strength: "500 mg", qty: 20, units: "แคปซูล", howto: "รับประทานครั้งละ 1 แคปซูล วันละ 3 ครั้ง หลังอาหาร", pending: false }], dx: [] },
+        { code: "RDU.ASTHMA_ICS", label: "โรคหืด ไม่ได้ยาสูดสเตียรอยด์", criteria: "ICD-10 J45–J46 ควรได้ยาสูดสเตียรอยด์ (เป้าหมาย ≥ 80%)", drugs: [], dx: ["J45.9"] },
+      ],
+    };
+    const pendingHit = { code: "RDU.NSAID_DUP", label: "ใช้ยา NSAIDs ซ้ำซ้อน", criteria: "ไม่ควรได้ยา NSAIDs ตั้งแต่ 2 ชนิดพร้อมกัน (เป้าหมาย ≤ 5%)", drugs: [{ name: "Ibuprofen", strength: "400 mg", qty: 20, units: "เม็ด", howto: null, pending: false }, { name: "Diclofenac", strength: "25 mg", qty: null, units: null, howto: null, pending: true }], dx: [] };
+    bar.update({ hn: DEMO_HN, panel: null, update: "0.2.0", blind: false, save, authen: noAuthen, rlu, rdu, opps });
     await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
-    lab.open({ hn: DEMO_HN, panel: "rlu", save, settings: demoSettings, rlu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
+    lab.open({ hn: DEMO_HN, panel: "rlu", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
     await new Promise((r) => setTimeout(r, 700));
     writeFileSync(join(SHOT_DIR, "0-rlu.png"), (await lab.capture()).toPNG());
-    lab.open({ hn: DEMO_HN, panel: "opps", save, settings: demoSettings, rlu, opps, authen: noAuthen }, { offscreen: true });
+    lab.open({ hn: DEMO_HN, panel: "opps", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen }, { offscreen: true });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-opps.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "authen", save, settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "authen", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, version: app.getVersion(), rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, version: app.getVersion(), rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "ofc", save, settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "ofc", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-ofc.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "save", save, settings: demoSettings, rlu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "save", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-save.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "rdu", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-rdu.png"), (await lab.capture()).toPNG());
     lab.close();
+    showWarning({ title: "แจ้งเตือน", hn: DEMO_HN, lines: rduLines([pendingHit]) }, { offscreen: true });
+    await new Promise((r) => setTimeout(r, 700));
+    writeFileSync(join(SHOT_DIR, "0-warn.png"), (await warnWin!.capture()).toPNG());
+    warnWin!.close();
     bar.destroy();
   }
   app.quit();
@@ -152,9 +186,9 @@ app.whenReady().then(async () => {
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
   // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN, again after a save of that patient).
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
-  let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
+  let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, rdu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
-  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, version: app.getVersion(), rlu: bar.rlu, opps: bar.opps, authen: bar.authen });
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, version: app.getVersion(), rlu: bar.rlu, rdu: bar.rdu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
     settings = next;
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());
@@ -166,7 +200,7 @@ app.whenReady().then(async () => {
     const items = await fetchOpportunities(cfg, hn);
     if (bar.hn === hn) setBar({ opps: items ? { state: "ok", items } : { state: "error" } });
   };
-  // The on-screen patient's badges (Authen/close, RLU, opportunities); one fetch at a time per HN.
+  // The on-screen patient's badges (Authen/close, RLU, RDU, opportunities); one fetch at a time per HN.
   const loading = new Set<string>();
   const loadPatient = (hn: string) => {
     if (loading.has(hn)) return;
@@ -174,6 +208,7 @@ app.whenReady().then(async () => {
     void Promise.all([
       fetchAuthen(cfg, hn).then((a) => bar.hn === hn && setBar({ authen: a ? { state: "ok", ...a } : { state: "error" } })),
       fetchRlu(cfg, hn).then((items) => bar.hn === hn && setBar({ rlu: items ? { state: "ok", items } : { state: "error" } })),
+      fetchRdu(cfg, hn).then((hits) => bar.hn === hn && setBar({ rdu: hits ? { state: "ok", hits } : { state: "error" } })),
       refreshOpps(),
     ]).finally(() => loading.delete(hn));
   };
@@ -232,18 +267,51 @@ app.whenReady().then(async () => {
   tray = new Tray(trayIcon());
   tray.setToolTip("เตือนสติ (bkh_assist)");
   tray.setContextMenu(Menu.buildFromTemplate([{ label: "ปิดเตือนสติ (bkh_assist)", click: () => app.quit() }]));
+  // RDU before saving: the text in HOSxP's "ชื่อยา / ค่าบริการ" box is checked against the visit's rules. A rule warns
+  // once per patient until the box is emptied (cleared and re-entered = warn again, as in TopStickly); rules the saved
+  // drugs already hit are on the RDU badge, not a pre-save warning.
+  let drugText = "";
+  const warned = new Set<string>();
+  const checkDrug = async () => {
+    let t: string | undefined;
+    try {
+      t = shownDrug();
+    } catch (err) {
+      return log("drug box read failed", err);
+    }
+    // undefined: HOSxP busy. While the badge's hits are loading we cannot tell saved-only rules apart: retry next tick
+    if (t === undefined || t === drugText || (t && bar.rdu.state === "loading")) return;
+    drugText = t;
+    const hn = bar.hn;
+    if (!t) return warned.clear();
+    if (!hn) return;
+    const hits = await fetchRdu(cfg, hn, t);
+    if (!hits || bar.hn !== hn || drugText !== t) return; // the server failed, or the user moved on while we asked
+    const saved = new Set(bar.rdu.state === "ok" ? bar.rdu.hits.map((h) => h.code) : []);
+    const fresh = hits.filter((h) => h.drugs.some((d) => d.pending) && !saved.has(h.code) && !warned.has(h.code));
+    if (!fresh.length) return;
+    fresh.forEach((h) => warned.add(h.code));
+    log(`rdu pre-save warning rules=${fresh.map((h) => h.code).join(",")}`);
+    showWarning({ title: "แจ้งเตือน", hn, lines: rduLines(fresh) });
+  };
   setInterval(() => {
     let hn: string | null | undefined;
     try {
       hn = shownHn();
     } catch (err) {
-      return log("topbar HN read failed", err);
+      log("topbar HN read failed", err);
+      hn = undefined;
     }
-    if (hn === undefined || hn === bar.hn) return; // undefined: HOSxP busy, keep the last HN
-    if (!bar.panel || !ownPanel(bar.panel)) lab.close(); // the open results belonged to the previous patient
-    setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
-    loading.clear(); // a fetch started before the user left and came back may have dropped some results: fetch again
-    if (hn) loadPatient(hn);
+    if (hn !== undefined && hn !== bar.hn) {
+      // undefined: HOSxP busy, keep the last HN
+      if (!bar.panel || !ownPanel(bar.panel)) lab.close(); // the open results belonged to the previous patient
+      setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, rdu: { state: "loading" }, opps: { state: "loading" } });
+      loading.clear(); // a fetch started before the user left and came back may have dropped some results: fetch again
+      drugText = ""; // the box is checked again for the new patient
+      warned.clear();
+      if (hn) loadPatient(hn);
+    }
+    void checkDrug();
   }, HN_POLL_MS);
 
   if (!w.isElevated()) log("WARNING: not running as Administrator; saves in an elevated HOSxP are not seen");

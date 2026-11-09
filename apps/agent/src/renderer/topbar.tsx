@@ -76,7 +76,7 @@ function SaveBadge({ save: c, screenHn, active, onClick }: { save: SaveCheck; sc
 }
 
 function Topbar() {
-  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
+  const [s, setS] = useState<TopbarStatus>({ hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, rdu: { state: "loading" }, opps: { state: "loading" } });
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     window.bkhTop.onStatus(setS);
@@ -118,6 +118,14 @@ function Topbar() {
     : s.rlu.items.length === 0 ? "ยังไม่มีรายการ RLU"
     : rluWarn.length ? `เตือน: ${rluWarn.map((i) => i.label).join(", ")}`
     : "ไม่มีรายการที่เข้าเกณฑ์เตือน";
+  // RDU: amber when the visit's saved drugs/diagnoses hit a rule, green when none; grey while loading or on error
+  const rduHits = s.rdu.state === "ok" ? s.rdu.hits : [];
+  const rduTone = s.rdu.state !== "ok" ? "none" : rduHits.length ? "amber" : "green";
+  const rduWhy =
+    s.rdu.state === "loading" ? "กำลังตรวจ RDU"
+    : s.rdu.state === "error" ? "ตรวจ RDU ไม่ได้ (เชื่อมต่อ server ไม่ได้)"
+    : rduHits.length ? `เข้าเกณฑ์: ${rduHits.map((h) => h.label).join(", ")}`
+    : "ไม่มีรายการที่เข้าเกณฑ์ RDU";
 
   return (
     <div className="bar">
@@ -145,6 +153,18 @@ function Topbar() {
           <span key={`${s.hn}-${rluTone}-${rluWarn.length}`} className={`light ${rluTone}`} />
           RLU
           {rluWarn.length > 0 && <span className="count">{rluWarn.length}</span>}
+        </button>
+      )}
+      {s.hn && (
+        <button
+          className={`lab ${s.panel === "rdu" ? "active" : ""}`}
+          title={`RDU (การใช้ยาอย่างสมเหตุผล): ${rduWhy} · คลิกดูรายการ`}
+          aria-expanded={s.panel === "rdu"}
+          onClick={() => togglePanel("rdu")}
+        >
+          <span key={`${s.hn}-${rduTone}-${rduHits.length}`} className={`light ${rduTone}`} />
+          RDU
+          {rduHits.length > 0 && <span className="count amber">{rduHits.length}</span>}
         </button>
       )}
       <span className="grow" />
