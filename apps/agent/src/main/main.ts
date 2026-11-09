@@ -150,7 +150,7 @@ app.whenReady().then(async () => {
   if (!cfg.agentKey) log("WARNING: agentKey is empty; the server will reject checks");
 
   // Sticky top bar (replaces the tray icon): shows the HN HOSxP displays right now.
-  // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN).
+  // On a new HN it also fetches that patient's RLU items and "จัดเก็บ" opportunities (once per HN, again after a save of that patient).
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
   let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
@@ -160,13 +160,22 @@ app.whenReady().then(async () => {
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());
   };
   // Refetched on HN change and whenever จัดเก็บ/OFC opens: admin edits or a service-point change apply to the open patient.
-  const refreshOpps = () => {
+  const refreshOpps = async () => {
     const hn = bar.hn;
     if (!hn) return;
-    void fetchOpportunities(cfg, hn).then((items) => {
-      if (bar.hn !== hn) return;
-      setBar({ opps: items ? { state: "ok", items } : { state: "error" } });
-    });
+    const items = await fetchOpportunities(cfg, hn);
+    if (bar.hn === hn) setBar({ opps: items ? { state: "ok", items } : { state: "error" } });
+  };
+  // The on-screen patient's badges (Authen/close, RLU, opportunities); one fetch at a time per HN.
+  const loading = new Set<string>();
+  const loadPatient = (hn: string) => {
+    if (loading.has(hn)) return;
+    loading.add(hn);
+    void Promise.all([
+      fetchAuthen(cfg, hn).then((a) => bar.hn === hn && setBar({ authen: a ? { state: "ok", ...a } : { state: "error" } })),
+      fetchRlu(cfg, hn).then((items) => bar.hn === hn && setBar({ rlu: items ? { state: "ok", items } : { state: "error" } })),
+      refreshOpps(),
+    ]).finally(() => loading.delete(hn));
   };
   const loadSettings = async (module?: string) => {
     const r = await servicePoint(cfg, module);
@@ -176,7 +185,7 @@ app.whenReady().then(async () => {
     if (module) {
       log(`service point set to ${module}`);
       await modules.refresh(); // the next save is checked with the new module right away
-      refreshOpps();
+      void refreshOpps();
     }
   };
   const ownPanel = (p: Panel) => p === "settings" || p === "save";
@@ -202,7 +211,7 @@ app.whenReady().then(async () => {
         settings = { state: "loading" };
         void loadSettings();
       }
-      if (panel === "opps" || panel === "ofc") refreshOpps();
+      if (panel === "opps" || panel === "ofc") void refreshOpps();
       if (panel && (bar.hn || ownPanel(panel))) {
         setBar({ panel });
         lab.open(view(), panel === "rlu" ? { anchor: topbar.below(x ?? 0) } : {});
@@ -224,25 +233,17 @@ app.whenReady().then(async () => {
   tray.setToolTip("เตือนสติ (bkh_assist)");
   tray.setContextMenu(Menu.buildFromTemplate([{ label: "ปิดเตือนสติ (bkh_assist)", click: () => app.quit() }]));
   setInterval(() => {
-    let hn: string | null;
+    let hn: string | null | undefined;
     try {
       hn = shownHn();
     } catch (err) {
       return log("topbar HN read failed", err);
     }
-    if (hn === bar.hn) return;
+    if (hn === undefined || hn === bar.hn) return; // undefined: HOSxP busy, keep the last HN
     if (!bar.panel || !ownPanel(bar.panel)) lab.close(); // the open results belonged to the previous patient
     setBar({ hn, authen: { state: "loading" }, rlu: { state: "loading" }, opps: { state: "loading" } });
-    if (!hn) return;
-    void fetchAuthen(cfg, hn).then((a) => {
-      if (bar.hn !== hn) return;
-      setBar({ authen: a ? { state: "ok", ...a } : { state: "error" } });
-    });
-    void fetchRlu(cfg, hn).then((items) => {
-      if (bar.hn !== hn) return; // the user already moved to another patient
-      setBar({ rlu: items ? { state: "ok", items } : { state: "error" } });
-    });
-    refreshOpps();
+    loading.clear(); // a fetch started before the user left and came back may have dropped some results: fetch again
+    if (hn) loadPatient(hn);
   }, HN_POLL_MS);
 
   if (!w.isElevated()) log("WARNING: not running as Administrator; saves in an elevated HOSxP are not seen");
@@ -305,6 +306,8 @@ app.whenReady().then(async () => {
     const state = toAlert(mod.label, ev, outcome);
     log(`check result=${outcome.kind === "result" ? outcome.response.status : outcome.kind}`);
     showSave(ev, state);
+    // the save may change the badges (Authen/close, RLU, opportunities): refetch while that patient is still on screen
+    if (ev.hn && ev.hn === bar.hn) loadPatient(ev.hn);
   });
   watcher.start();
   app.on("before-quit", () => watcher.stop());

@@ -36,12 +36,23 @@ export function findF9SaveButton(top: Hwnd): Hwnd | null {
   return null;
 }
 
-/** Read the HN shown on a form: label "HN" -> closest edit on the same row to its right. */
-export function readHn(form: Hwnd): string | null {
-  const kids = w.children(form).filter((h) => w.isVisible(h));
-  const labels = kids.filter((h) => w.className(h).includes("Label") && w.windowText(h).trim() === "HN");
-  let best: { hn: string; dx: number } | null = null;
-  for (const lab of labels) {
+const HN_LABEL = /^\s*HN\s*(\/\s*Q)?\s*[:.]?\s*$/i; // "HN", "HN/Q", "HN :", "HN."
+const HN_VALUE = /^\d+$/; // digits only; leading zeros are part of the HN
+const hnText = (edit: Hwnd) => w.windowTextOrNull(edit, 20)?.trim() ?? null;
+
+/**
+ * The HN edit on a window: label "HN" -> closest edit on the same row to its right, holding an HN.
+ * null = none, undefined = none found but HOSxP did not answer some text reads (busy).
+ */
+function findHnEdit(win: Hwnd): { edit: Hwnd; hn: string } | null | undefined {
+  const kids = w.children(win).filter((h) => w.isVisible(h));
+  let busy = false;
+  let best: { edit: Hwnd; hn: string; dx: number } | null = null;
+  for (const lab of kids) {
+    if (!w.className(lab).includes("Label")) continue;
+    const t = w.windowTextOrNull(lab);
+    if (t === null) busy = true;
+    if (!t || !HN_LABEL.test(t)) continue;
     const lr = w.rectOf(lab);
     for (const e of kids) {
       const c = w.className(e);
@@ -49,11 +60,17 @@ export function readHn(form: Hwnd): string | null {
       const er = w.rectOf(e);
       const dx = er.left - lr.right;
       if (Math.abs(er.top - lr.top) > 8 || dx < -4 || dx > 120) continue;
-      const hn = w.windowText(e, 20).trim();
-      if (/^\d{1,9}$/.test(hn) && (!best || dx < best.dx)) best = { hn, dx };
+      const hn = hnText(e);
+      if (hn === null) busy = true;
+      else if (HN_VALUE.test(hn) && (!best || dx < best.dx)) best = { edit: e, hn, dx };
     }
   }
-  return best?.hn ?? null;
+  return best ?? (busy ? undefined : null);
+}
+
+/** Read the HN shown on a form (used for the saved form); null if none or unreadable. */
+export function readHn(form: Hwnd): string | null {
+  return findHnEdit(form)?.hn ?? null;
 }
 
 export type ScreenInfo = { form: string; formHwnd: Hwnd; hn: string | null; bounds: w.Rect };
@@ -69,19 +86,35 @@ export function currentHn(form: Hwnd): string | null {
   return w.isAlive(form) && w.isVisible(form) ? readHn(form) : null;
 }
 
+let hnCache: { top: Hwnd; edit: Hwnd } | null = null;
+
 /**
- * HN shown in HOSxP right now (for the top bar): the foreground HOSxP window first, else any visible one.
- * Polled about once a second; one EnumWindows + one EnumChildWindows per HOSxP window.
+ * HN shown in HOSxP right now (for the top bar); null = none, undefined = HOSxP busy (keep the last one).
+ * Windows are tried foreground first, then in z-order (a dialog over the main form wins).
+ * Polled about once a second: the HN edit found is cached while the same window stays on top, so a poll is
+ * usually one EnumWindows + one WM_GETTEXT; it re-scans the children only when the top window or the edit changes.
  */
-export function shownHn(): string | null {
-  const hosxp = w.topWindows().filter(isHosxpWindow);
+export function shownHn(): string | null | undefined {
+  const hosxp = w.topWindows().filter((h) => isHosxpWindow(h) && w.className(h) !== "TApplication"); // z-order, top first
   const fg = w.rootOf(w.foregroundWindow());
-  hosxp.sort((a, b) => Number(w.sameHwnd(b, fg)) - Number(w.sameHwnd(a, fg)));
-  for (const win of hosxp) {
-    const hn = readHn(win);
-    if (hn) return hn;
+  hosxp.sort((a, b) => Number(w.sameHwnd(b, fg)) - Number(w.sameHwnd(a, fg))); // stable: the rest keep z-order
+  const top = hosxp[0];
+  if (hnCache && w.sameHwnd(hnCache.top, top) && w.isAlive(hnCache.edit) && w.isVisible(hnCache.edit)) {
+    const hn = hnText(hnCache.edit);
+    if (hn === null) return undefined;
+    if (HN_VALUE.test(hn)) return hn;
   }
-  return null;
+  hnCache = null;
+  let busy = false;
+  for (const win of hosxp) {
+    const found = findHnEdit(win);
+    if (found) {
+      hnCache = { top, edit: found.edit };
+      return found.hn;
+    }
+    if (found === undefined) busy = true;
+  }
+  return busy ? undefined : null;
 }
 
 /**
