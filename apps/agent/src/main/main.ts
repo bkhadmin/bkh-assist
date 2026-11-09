@@ -14,7 +14,8 @@ import type { AlertState, LabView, Panel, SaveCheck, ServicePoint, TopbarStatus,
 import { Checker, type CheckOutcome } from "./checker";
 import { loadConfig, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
-import { savesHidden, shownDrug, shownHn } from "./hosxp";
+import { isHosxpWindow, savesHidden, shownDrug, shownHn } from "./hosxp";
+import { watchLabTicks } from "./lab-tick";
 import { fetchAuthen, fetchOpportunities, fetchRdu, fetchRlu, servicePoint } from "./lab";
 import { LabWindow } from "./lab-window";
 import { TopbarWindow } from "./topbar-window";
@@ -378,7 +379,23 @@ app.whenReady().then(async () => {
     if (ev.hn && ev.hn === bar.hn) loadPatient(ev.hn);
   });
   watcher.start();
-  app.on("before-quit", () => watcher.stop());
+  // Ticking a lab in HOSxP that an RLU item says was already done within the guideline interval: warn before ordering.
+  // Needs the hook started by watcher.start() above.
+  const stopLabTicks = watchLabTicks({
+    isHosxp: isHosxpWindow,
+    getWarnItems: () =>
+      bar.rlu.state === "ok"
+        ? bar.rlu.items.filter((i) => i.warn).map((i) => ({ code: i.code, label: i.label, message: i.message, labNames: i.labNames ?? [] }))
+        : [],
+    onHit: (item, caption) => {
+      log(`lab tick warning rule=${item.code}`);
+      showWarning({ title: "RLU · ไม่ควรสั่งซ้ำ", hn: bar.hn, lines: [`• ${caption}`, item.message ?? `${item.label}: ตรวจแล้วภายในระยะตามแนวทาง RLU`] });
+    },
+  });
+  app.on("before-quit", () => {
+    stopLabTicks();
+    watcher.stop();
+  });
 });
 
 // background app: keep running when no panel window is open
