@@ -160,6 +160,47 @@ export const AgentRluResponseSchema = z.object({
 });
 export type AgentRluResponse = z.infer<typeof AgentRluResponseSchema>;
 
+/**
+ * `GET /api/agent/rdu?hn=<hn>&machine=<hostname>[&drug=<text in HOSxP's "ชื่อยา / ค่าบริการ" box>]`:
+ * RDU (Rational Drug Use, Service Plan RDU per-visit indicators) rules hit by the patient's latest visit.
+ * With `drug`, that not-yet-saved drug (resolved to drugitems by name) takes part in every rule, so the agent can
+ * warn before the order is saved. Only rule hits are returned. Never names/CID.
+ */
+export const RduDrugSchema = z.object({
+  /** drugitems.name */
+  name: z.string(),
+  strength: z.string().nullable(),
+  qty: z.number().nullable(),
+  units: z.string().nullable(),
+  /** drug usage text (drugusage name1..3) */
+  howto: z.string().nullable(),
+  /** the drug typed in the box, not saved yet */
+  pending: z.boolean(),
+});
+export const RduHitSchema = z.object({
+  /** rule code, e.g. "RDU.URI_ABX" */
+  code: z.string(),
+  /** e.g. "URI/หลอดลมอักเสบเฉียบพลัน ได้ยาปฏิชีวนะ" */
+  label: z.string(),
+  /** the criterion in words, e.g. "ICD-10 J00–J06, J20–J21 … ไม่ควรได้ยาปฏิชีวนะ (เป้าหมาย ≤ 20%)" */
+  criteria: z.string(),
+  /** the visit's drugs (and the pending one) that triggered the rule */
+  drugs: z.array(RduDrugSchema),
+  /** diagnosis codes behind the hit when no drug is involved (e.g. asthma without inhaled steroid) */
+  dx: z.array(z.string()),
+});
+export type RduHit = z.infer<typeof RduHitSchema>;
+export const AgentRduResponseSchema = z.object({
+  hn: z.string(),
+  /** the visit evaluated; null = no visit */
+  vn: z.string().nullable(),
+  /** the drug text resolved to a drug item (null = no `drug` given or not found) */
+  pendingDrug: z.object({ icode: z.string(), name: z.string() }).nullable(),
+  /** hits in rule order; with `drug`, includes hits from saved drugs too (the agent filters by `pending`) */
+  hits: z.array(RduHitSchema),
+});
+export type AgentRduResponse = z.infer<typeof AgentRduResponseSchema>;
+
 /** `GET /api/agent/opportunities?hn=<hn>&machine=<hostname>`: opportunities the patient's latest visit matches. */
 export const AgentOpportunitiesResponseSchema = z.object({
   hn: z.string(),
