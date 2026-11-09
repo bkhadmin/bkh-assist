@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { Badge, Card, Empty, PageHeader, btnPrimary, focusRing } from "@/components/ui/ui";
 import { columnLabel, listRluItems } from "@/lib/admin-data";
 import { describe } from "@/lib/opportunities/conditions";
+import { previewSql } from "@/lib/opportunities/sources";
 import { RluActiveSwitch } from "../item-controls";
 
 export const metadata: Metadata = { title: "RLU (แล็บ)" };
@@ -60,6 +61,12 @@ async function RluList() {
                     </li>
                   ))}
                 </ul>
+                {r.conditions.length > 0 && (
+                  <details className="mt-1 text-sm text-muted">
+                    <summary className="cursor-pointer">SQL</summary>
+                    <pre className="mt-1 overflow-x-auto rounded-md bg-surface-sunken p-2 font-mono text-xs">{previewSql(r.conditions)}</pre>
+                  </details>
+                )}
               </div>
               <RluActiveSwitch code={r.code} label={r.label} isActive={r.isActive} />
             </li>

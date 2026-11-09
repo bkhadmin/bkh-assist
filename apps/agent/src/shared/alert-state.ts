@@ -49,6 +49,6 @@ export type TopbarStatus = {
   opps: { state: "loading" } | { state: "error" } | { state: "ok"; items: AlertOpportunity[] };
 };
 /** top bar renderer -> main */
-export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "panel"; panel: Panel | null; /** badge left edge, CSS px from the bar's left (anchors the RLU dropdown) */ x?: number } | { type: "update" };
+export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "panel"; panel: Panel | null } | { type: "update" };
 /** What the panel window shows. Sent main -> lab renderer. */
 export type LabView = { hn: string | null; panel: Panel; save: SaveCheck | null; settings: ServicePoint; /** this agent's version, shown in the settings panel */ version?: string; rlu: TopbarStatus["rlu"]; rdu: TopbarStatus["rdu"]; /** the "warn" panel */ warning?: Warning; opps: TopbarStatus["opps"]; authen: TopbarStatus["authen"]; /** demo screenshots only: this RLU item starts expanded */ demoExpand?: string };

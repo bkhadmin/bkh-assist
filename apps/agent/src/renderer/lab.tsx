@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { RduHit } from "@bkh/shared";
 import type { AlertOpportunity, LabView } from "../shared/alert-state";
@@ -8,14 +8,12 @@ import "./lab.css";
 
 declare global {
   interface Window {
-    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; ack(): void; setServicePoint(code: string): void; resize(height: number): void };
+    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; ack(): void; setServicePoint(code: string): void; };
   }
 }
 
 const Msg = ({ children }: { children: ReactNode }) => <p className="msg">{children}</p>;
 const ERROR = "ดึงข้อมูลไม่ได้ (เชื่อมต่อ server ไม่ได้)";
-/** lab.css body.drop bottom padding: the shadow below the dropdown card */
-const DROP_PAD = 14;
 
 /** The latest save check, large: every missing field with its severity. */
 function Save({ save: c }: { save: LabView["save"] }) {
@@ -52,24 +50,10 @@ function Save({ save: c }: { save: LabView["save"] }) {
 /** RLU dropdown (anchored under the top bar badge): every item with its light; a row expands to its last 3 results. */
 function Rlu({ v }: { v: LabView }) {
   const [open, setOpen] = useState<string[]>(() => (v.demoExpand ? [v.demoExpand] : []));
-  const card = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    document.body.classList.add("drop");
-    // the window fits the card (plus the shadow margin below it); the list scrolls past its CSS max-height
-    const ro = new ResizeObserver(() => card.current && window.bkhLab.resize(card.current.getBoundingClientRect().height + DROP_PAD));
-    ro.observe(card.current!);
-    return () => ro.disconnect();
-  }, []);
   const r = v.rlu;
   const toggle = (code: string) => setOpen((o) => (o.includes(code) ? o.filter((c) => c !== code) : [...o, code]));
   return (
-    <section className="card drop-card" ref={card} role="dialog" aria-labelledby="lab-title">
-      <header className="drop-head">
-        <h1 id="lab-title">
-          RLU <small>การใช้ LAB อย่างสมเหตุผล</small>
-        </h1>
-        <span className="sub">HN {v.hn}</span>
-      </header>
+    <>
       {r.state === "loading" ? (
         <Msg>กำลังตรวจ…</Msg>
       ) : r.state === "error" ? (
@@ -118,7 +102,7 @@ function Rlu({ v }: { v: LabView }) {
           })}
         </ul>
       )}
-    </section>
+    </>
   );
 }
 
@@ -345,7 +329,8 @@ function Settings({ settings: st }: { settings: LabView["settings"] }) {
   );
 }
 
-const PANELS: Record<Exclude<LabView["panel"], "rlu" | "warn">, { title: string; foot: string }> = {
+const PANELS: Record<Exclude<LabView["panel"], "warn">, { title: string; foot: string }> = {
+  rlu: { title: "RLU · การใช้ LAB อย่างสมเหตุผล", foot: "เตือนเมื่อตรวจไปแล้วภายในรอบตามแนวทาง RLU (กรมวิทยาศาสตร์การแพทย์) · ไม่ควรสั่งซ้ำ · กดที่รายการเพื่อดูผล 3 ครั้งล่าสุด" },
   rdu: { title: "RDU · การใช้ยาอย่างสมเหตุผล", foot: "ประเมินจาก visit ล่าสุด ตามตัวชี้วัด Service Plan สาขา RDU รายครั้ง" },
   save: { title: "ผลตรวจการบันทึก", foot: "กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง ผลจะอัปเดตที่แถบด้านบน" },
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
@@ -363,7 +348,6 @@ function Lab() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   if (!v) return null;
-  if (v.panel === "rlu") return <Rlu v={v} />;
   if (v.panel === "warn") return <Warn w={v.warning} />;
   const p = PANELS[v.panel];
 
@@ -382,7 +366,9 @@ function Lab() {
         <CloseX />
       </header>
       <div className="body">
-        {v.panel === "save" ? (
+        {v.panel === "rlu" ? (
+          <Rlu v={v} />
+        ) : v.panel === "save" ? (
           <Save save={v.save} />
         ) : v.panel === "rdu" ? (
           <Rdu rdu={v.rdu} />

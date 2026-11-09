@@ -357,3 +357,33 @@ export const SOURCES: DataSource[] = [
 
 const BY_CODE = new Map(SOURCES.map((s) => [s.code, s]));
 export const getSource = (code: string) => BY_CODE.get(code);
+
+/**
+ * Read-only preview of the HIS queries a condition list runs (admin pages): one query per distinct source + codes,
+ * codes inlined as literals and the visit as :vn, each headed by the columns it is checked on. Display only, never run.
+ */
+export function previewSql(conditions: { source: string; codes?: string[]; column: string; op: string; value?: string }[]): string {
+  const groups = new Map<string, { source: DataSource; codes: string[]; checks: string[] }>();
+  for (const c of conditions) {
+    const source = getSource(c.source);
+    if (!source) continue;
+    const codes = c.codes ?? [];
+    const key = `${c.source}|${codes.join(",")}`;
+    const g = groups.get(key) ?? { source, codes, checks: [] };
+    g.checks.push(`${c.column} ${c.op}${c.value != null ? ` ${c.value}` : ""}`);
+    groups.set(key, g);
+  }
+  return [...groups.values()]
+    .map(({ source, codes, checks }) => {
+      const { sql, params } = source.build(codes, ":vn");
+      // placeholders only: a ? inside a quoted literal (e.g. the REGEXP '^-?[0-9]+') is SQL text
+      let i = 0;
+      const inlined = sql.replace(/'(?:[^']|'')*'|\?/g, (m) => {
+        if (m !== "?") return m;
+        const p = String(params[i++]);
+        return p === ":vn" ? ":vn" : `'${p.replace(/'/g, "''")}'`;
+      });
+      return `-- ${source.label}${codes.length ? ` [${codes.join(", ")}]` : ""}: ${checks.join(" AND ")}\n${inlined.trim()}`;
+    })
+    .join("\n\n");
+}

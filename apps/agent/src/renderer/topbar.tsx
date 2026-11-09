@@ -100,7 +100,7 @@ function Topbar() {
     );
   }
 
-  const togglePanel = (panel: Panel, x?: number) => send({ type: "panel", panel: s.panel === panel ? null : panel, x });
+  const togglePanel = (panel: Panel) => send({ type: "panel", panel: s.panel === panel ? null : panel });
   // OFC items have their own button; "จัดเก็บ" counts the rest (PP …)
   const oppItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category !== "OFC") : null;
   const ofcItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category === "OFC") : [];
@@ -147,7 +147,7 @@ function Topbar() {
           title={`RLU (การใช้ LAB อย่างสมเหตุผล): ${rluWhy} · คลิกดูรายการ`}
           aria-expanded={s.panel === "rlu"}
           aria-haspopup="dialog"
-          onClick={(e) => togglePanel("rlu", e.currentTarget.getBoundingClientRect().left)}
+          onClick={() => togglePanel("rlu")}
         >
           {/* key: a new patient or a new warning state restarts the blink (green 5×, red 10×; see topbar.css) */}
           <span key={`${s.hn}-${rluTone}-${rluWarn.length}`} className={`light ${rluTone}`} />

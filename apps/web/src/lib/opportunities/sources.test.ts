@@ -1,7 +1,7 @@
 // Run: node --test --experimental-strip-types apps/web/src/lib/opportunities/sources.test.ts
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SOURCES } from "./sources.ts";
+import { SOURCES, previewSql } from "./sources.ts";
 
 test("every source binds one param per placeholder", () => {
   for (const src of SOURCES) {
@@ -45,4 +45,19 @@ test("anc_lab done requires every distinct listed id", () => {
   const src = SOURCES.find((s) => s.code === "anc_lab")!;
   assert.match(src.build(["2", "4"], "1").sql, /COUNT\(DISTINCT l\.anc_lab_id\) = 2 /);
   assert.match(src.build(["2", "2"], "1").sql, /COUNT\(DISTINCT l\.anc_lab_id\) = 1 /);
+});
+
+test("previewSql inlines codes, keeps :vn and groups conditions per source + codes", () => {
+  const sql = previewSql([
+    { source: "lab", codes: ["334"], column: "days_since_prev", op: "lte", value: "89" },
+    { source: "diag", codes: ["E11"], column: "days_since", op: "not_empty" },
+    { source: "lab", codes: ["334"], column: "last_value", op: "gte", value: "7" },
+  ]);
+  assert.equal((sql.match(/^-- /gm) ?? []).length, 2, "one query per source + codes");
+  assert.match(sql, /days_since_prev lte 89 AND last_value gte 7/);
+  assert.match(sql, /'334'/);
+  assert.match(sql, /:vn/);
+  assert.match(sql, /lab_items_code IN \('334'\)/, "codes go into the placeholders");
+  assert.match(sql, /'\^-\?\[0-9\]/, "a ? inside a quoted REGEXP is left alone");
+  assert.doesNotMatch(sql, /undefined/);
 });

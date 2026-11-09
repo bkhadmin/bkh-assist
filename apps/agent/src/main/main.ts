@@ -114,7 +114,7 @@ async function runDemo(cfg: AgentConfig) {
     const rlu = {
       state: "ok" as const,
       items: [
-        { code: "HBA1C", label: "HbA1c", warn: true, message: "ผู้ป่วยเบาหวาน ไม่ได้ตรวจ HbA1c เกิน 90 วัน", results: [{ date: "2026-04-16", value: "8.4", name: "HbA1c" }, { date: "2025-11-12", value: "10.1", name: "HbA1c" }, { date: "2025-05-20", value: "6.4", name: "HbA1c" }] },
+        { code: "HBA1C", label: "HbA1c", warn: true, message: "ตรวจ HbA1c แล้วภายใน 90 วัน · แนวทาง RLU: ห่างกันอย่างน้อย 3 เดือน", results: [{ date: "2026-04-16", value: "8.4", name: "HbA1c" }, { date: "2025-11-12", value: "10.1", name: "HbA1c" }, { date: "2025-05-20", value: "6.4", name: "HbA1c" }] },
         { code: "LDL", label: "LDL", warn: false, message: null, results: [{ date: "2026-09-02", value: "96", name: "LDL-C (direct)" }] },
         { code: "CREATININE", label: "Creatinine", warn: false, message: null, results: [{ date: "2026-10-01", value: "1.02", name: "Creatinine" }, { date: "2026-03-11", value: "0.98", name: "Creatinine" }, { date: "2025-09-30", value: "1.10", name: "Creatinine (enzymatic)" }] },
         { code: "UACR", label: "Urine albumin/creatinine", warn: false, message: null, results: [] },
@@ -144,7 +144,7 @@ async function runDemo(cfg: AgentConfig) {
     await new Promise((r) => setTimeout(r, 900));
     writeFileSync(join(SHOT_DIR, "0-topbar.png"), (await bar.capture()).toPNG());
     const lab = new LabWindow(() => {});
-    lab.open({ hn: DEMO_HN, panel: "rlu", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true, anchor: bar.below(260) });
+    lab.open({ hn: DEMO_HN, panel: "rlu", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen, demoExpand: "CREATININE" }, { offscreen: true });
     await new Promise((r) => setTimeout(r, 700));
     writeFileSync(join(SHOT_DIR, "0-rlu.png"), (await lab.capture()).toPNG());
     lab.open({ hn: DEMO_HN, panel: "opps", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen }, { offscreen: true });
@@ -242,7 +242,7 @@ app.whenReady().then(async () => {
     },
   );
   const topbar = new TopbarWindow({
-    onPanel: (panel, x) => {
+    onPanel: (panel) => {
       if (panel === "settings") {
         settings = { state: "loading" };
         void loadSettings();
@@ -250,7 +250,7 @@ app.whenReady().then(async () => {
       if (panel === "opps" || panel === "ofc") void refreshOpps();
       if (panel && (bar.hn || ownPanel(panel))) {
         setBar({ panel });
-        lab.open(view(), panel === "rlu" ? { anchor: topbar.below(x ?? 0) } : {});
+        lab.open(view());
       } else lab.close();
     },
     onUpdate: () => {

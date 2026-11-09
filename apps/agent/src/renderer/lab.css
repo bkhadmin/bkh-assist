@@ -134,14 +134,7 @@ td { padding: 10px 18px; border-top: 1px solid var(--border); font-variant-numer
 .total { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 24px; border-top: 1px solid var(--border); font-weight: 600; }
 .total b { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--green); }
 
-/* RLU dropdown, anchored under its top bar badge: flush with the bar, shadow margin only left/right/below */
-body.drop { padding: 0 14px 14px; }
-.drop-card { height: auto; border-top: 0; border-radius: 0 0 12px 12px; }
-.drop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px 8px; border-bottom: 1px solid var(--border); }
-.drop-head { white-space: nowrap; }
-.drop-head h1 { font-size: 15px; font-weight: 700; }
-.drop-head h1 small { margin-left: 6px; font-size: 12.5px; font-weight: 400; color: var(--muted); }
-.drop-card .msg { padding: 14px; }
+/* RLU list (large panel) */
 .rlu { list-style: none; padding: 4px 0; max-height: 440px; overflow: auto; }
 .rlu li + li { border-top: 1px solid var(--border); }
 .rlu-row { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 8px 14px; text-align: left; }
