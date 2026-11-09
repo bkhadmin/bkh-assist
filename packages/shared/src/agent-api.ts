@@ -138,6 +138,9 @@ export const RluItemSchema = z.object({
   message: z.string().nullable(),
   /** last 3 reported results of the item's lab codes, newest first */
   results: z.array(RluResultSchema),
+  /** lab_items.lab_items_name of the item's lab codes, to match HOSxP lab-order captions; absent from older servers
+   *  (optional, not .default([]): typed objects built without it, e.g. the agent's demo data, keep compiling) */
+  labNames: z.array(z.string()).optional(),
 });
 export type RluItem = z.infer<typeof RluItemSchema>;
 export const AgentRluResponseSchema = z.object({
