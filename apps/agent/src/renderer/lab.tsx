@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import type { RduHit } from "@bkh/shared";
 import type { AlertOpportunity, LabView } from "../shared/alert-state";
 import { daysAgo, thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
@@ -169,6 +170,79 @@ function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
   );
 }
 
+/** "Amoxicillin 500 mg · 20 แคปซูล · รับประทานครั้งละ 1 แคปซูล …" */
+const drugLine = (d: RduHit["drugs"][number]) =>
+  [[d.name, d.strength].filter(Boolean).join(" "), d.qty != null ? [d.qty, d.units].filter((x) => x != null).join(" ") : null, d.howto].filter(Boolean).join(" · ");
+
+/** RDU rules the latest visit hits: each rule, its criterion, and the drugs (or diagnoses) behind it. */
+function Rdu({ rdu }: { rdu: LabView["rdu"] }) {
+  if (rdu.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
+  if (rdu.state === "error") return <Msg>{ERROR}</Msg>;
+  if (rdu.hits.length === 0) return <Msg>visit ล่าสุดของคนไข้นี้ไม่เข้าเกณฑ์ RDU</Msg>;
+  return (
+    <ul className="opps">
+      {rdu.hits.map((h) => (
+        <li key={h.code}>
+          <span className="cat amber">RDU</span>
+          <span className="label">
+            {h.label}
+            <small className="detail">
+              <span className="wrap">{h.criteria}</span>
+            </small>
+            <ul className="rdu-drugs">
+              {h.drugs.map((d, i) => (
+                <li key={i}>
+                  {drugLine(d)}
+                  {d.pending && <span className="pending">ยังไม่บันทึก</span>}
+                </li>
+              ))}
+              {h.dx.length > 0 && <li>วินิจฉัย {h.dx.join(", ")}</li>}
+            </ul>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const CloseX = () => (
+  <button className="close" title="ปิด (Esc)" aria-label="ปิด" onClick={() => window.bkhLab.close()}>
+    <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
+    </svg>
+  </button>
+);
+
+/** Warning popup (any module): amber card, its lines ("•" = an item's headline, the rest muted detail), "รับทราบ". */
+function Warn({ w }: { w: LabView["warning"] }) {
+  return (
+    <section className="card warn-card" role="alertdialog" aria-labelledby="lab-title">
+      <header className="head" title="ลากเพื่อย้าย">
+        <div>
+          <h1 id="lab-title">
+            <span className="warn-mark" aria-hidden="true">!</span>
+            {w?.title}
+          </h1>
+          {w?.hn && <p className="sub">HN {w.hn}</p>}
+        </div>
+        <CloseX />
+      </header>
+      <div className="body warn-lines">
+        {w?.lines.map((l, i) => (
+          <p key={i} className={l.startsWith("•") ? "warn-item" : "warn-detail"}>
+            {l}
+          </p>
+        ))}
+      </div>
+      <div className="actions save-ack">
+        <button className="primary" onClick={() => window.bkhLab.ack()}>
+          รับทราบ
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /** NHSO Authen of the latest visit: code + time, or a red "not authenticated" notice. */
 function Authen({ authen: a }: { authen: LabView["authen"] }) {
   if (a.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
@@ -271,7 +345,8 @@ function Settings({ settings: st }: { settings: LabView["settings"] }) {
   );
 }
 
-const PANELS: Record<Exclude<LabView["panel"], "rlu">, { title: string; foot: string }> = {
+const PANELS: Record<Exclude<LabView["panel"], "rlu" | "warn">, { title: string; foot: string }> = {
+  rdu: { title: "RDU · การใช้ยาอย่างสมเหตุผล", foot: "ประเมินจาก visit ล่าสุด ตามตัวชี้วัด Service Plan สาขา RDU รายครั้ง" },
   save: { title: "ผลตรวจการบันทึก", foot: "กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง ผลจะอัปเดตที่แถบด้านบน" },
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
@@ -289,6 +364,7 @@ function Lab() {
   }, []);
   if (!v) return null;
   if (v.panel === "rlu") return <Rlu v={v} />;
+  if (v.panel === "warn") return <Warn w={v.warning} />;
   const p = PANELS[v.panel];
 
   return (
@@ -303,15 +379,13 @@ function Lab() {
           )}
         </div>
         {v.panel === "settings" && v.version && <span className="ver">เวอร์ชัน {v.version}</span>}
-        <button className="close" title="ปิด (Esc)" aria-label="ปิด" onClick={() => window.bkhLab.close()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
-          </svg>
-        </button>
+        <CloseX />
       </header>
       <div className="body">
         {v.panel === "save" ? (
           <Save save={v.save} />
+        ) : v.panel === "rdu" ? (
+          <Rdu rdu={v.rdu} />
         ) : v.panel === "authen" ? (
           <Authen authen={v.authen} />
         ) : v.panel === "settings" ? (

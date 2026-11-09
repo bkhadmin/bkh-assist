@@ -88,6 +88,72 @@ export function currentHn(form: Hwnd): string | null {
 
 let hnCache: { top: Hwnd; edit: Hwnd } | null = null;
 
+/** Visible top-level HOSxP windows: the foreground one first, the rest in z-order (a dialog over the main form wins). */
+function hosxpWindows(): Hwnd[] {
+  const hosxp = w.topWindows().filter((h) => isHosxpWindow(h) && w.className(h) !== "TApplication"); // z-order, top first
+  const fg = w.rootOf(w.foregroundWindow());
+  return hosxp.sort((a, b) => Number(w.sameHwnd(b, fg)) - Number(w.sameHwnd(a, fg))); // stable: the rest keep z-order
+}
+
+const DRUG_LABEL = /^\s*ชื่อยา\s*\/\s*ค่าบริการ\s*$/;
+/** Rescan for a drug box at most this often while the same window shows none (a scan reads every label's text). */
+const DRUG_RESCAN_MS = 3000;
+let drugCache: { top: Hwnd; edit: Hwnd | null; at: number } | null = null;
+
+/**
+ * The drug box of the order screen: the edit right below the label "ชื่อยา / ค่าบริการ" (same parent, its top
+ * 0–40 px under the label's bottom, left edges within 20 px; the topmost such edit). null = none; undefined = busy.
+ */
+function findDrugEdit(win: Hwnd): Hwnd | null | undefined {
+  const kids = w.children(win).filter((h) => w.isVisible(h));
+  let busy = false;
+  for (const lab of kids) {
+    if (!w.className(lab).includes("Label")) continue;
+    const t = w.windowTextOrNull(lab);
+    if (t === null) busy = true;
+    if (!t || !DRUG_LABEL.test(t)) continue;
+    const parent = w.parentOf(lab);
+    const lr = w.rectOf(lab);
+    let best: { edit: Hwnd; top: number } | null = null;
+    for (const e of kids) {
+      if (!/Edit$/.test(w.className(e)) || !w.sameHwnd(w.parentOf(e), parent)) continue;
+      const er = w.rectOf(e);
+      const dy = er.top - lr.bottom;
+      if (dy < 0 || dy > 40 || Math.abs(er.left - lr.left) > 20) continue;
+      if (!best || er.top < best.top) best = { edit: e, top: er.top };
+    }
+    if (best) return best.edit;
+  }
+  return busy ? undefined : null;
+}
+
+/**
+ * Text in HOSxP's drug box right now ("" = no box or empty), undefined = HOSxP busy. Polled once a second with the
+ * HN: the box is cached per top window (one WM_GETTEXT per poll); with no box, the window is rescanned every few seconds.
+ */
+export function shownDrug(): string | undefined {
+  const hosxp = hosxpWindows();
+  const top = hosxp[0];
+  const c = drugCache;
+  if (c && w.sameHwnd(c.top, top)) {
+    if (c.edit && w.isAlive(c.edit) && w.isVisible(c.edit)) return w.windowTextOrNull(c.edit, 200)?.trim() ?? undefined;
+    if (!c.edit && Date.now() - c.at < DRUG_RESCAN_MS) return "";
+  }
+  drugCache = null;
+  let busy = false;
+  for (const win of hosxp) {
+    const edit = findDrugEdit(win);
+    if (edit) {
+      drugCache = { top, edit, at: Date.now() };
+      return w.windowTextOrNull(edit, 200)?.trim() ?? undefined;
+    }
+    if (edit === undefined) busy = true;
+  }
+  if (busy) return undefined;
+  if (top) drugCache = { top, edit: null, at: Date.now() };
+  return "";
+}
+
 /**
  * HN shown in HOSxP right now (for the top bar); null = none, undefined = HOSxP busy (keep the last one).
  * Windows are tried foreground first, then in z-order (a dialog over the main form wins).
@@ -95,9 +161,7 @@ let hnCache: { top: Hwnd; edit: Hwnd } | null = null;
  * usually one EnumWindows + one WM_GETTEXT; it re-scans the children only when the top window or the edit changes.
  */
 export function shownHn(): string | null | undefined {
-  const hosxp = w.topWindows().filter((h) => isHosxpWindow(h) && w.className(h) !== "TApplication"); // z-order, top first
-  const fg = w.rootOf(w.foregroundWindow());
-  hosxp.sort((a, b) => Number(w.sameHwnd(b, fg)) - Number(w.sameHwnd(a, fg))); // stable: the rest keep z-order
+  const hosxp = hosxpWindows();
   const top = hosxp[0];
   if (hnCache && w.sameHwnd(hnCache.top, top) && w.isAlive(hnCache.edit) && w.isVisible(hnCache.edit)) {
     const hn = hnText(hnCache.edit);

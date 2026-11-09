@@ -1,5 +1,5 @@
 /** Lab lookups for the top bar (through the server; the agent never talks to HIS directly). */
-import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, AgentRluResponseSchema, type AgentAuthenResponse, type AgentOpportunitiesResponse, type AgentRluResponse } from "@bkh/shared";
+import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, AgentRluResponseSchema, AgentRduResponseSchema, type AgentRduResponse, type AgentAuthenResponse, type AgentOpportunitiesResponse, type AgentRluResponse } from "@bkh/shared";
 import type { AgentConfig } from "./config";
 
 /** RLU items of a patient (every active item, admin order, with its last 3 results); null when the server cannot answer. */
@@ -10,6 +10,22 @@ export async function fetchRlu(cfg: AgentConfig, hn: string): Promise<AgentRluRe
     if (!res.ok) return null;
     const parsed = AgentRluResponseSchema.safeParse(await res.json());
     return parsed.success ? parsed.data.items : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * RDU rules the patient's latest visit hits; with `drug` (text of HOSxP's drug box, not saved yet) that drug takes
+ * part too (its hits carry drugs[].pending). Only the hits; null when the server cannot answer.
+ */
+export async function fetchRdu(cfg: AgentConfig, hn: string, drug?: string): Promise<AgentRduResponse["hits"] | null> {
+  try {
+    const url = `${cfg.serverUrl}/api/agent/rdu?hn=${encodeURIComponent(hn)}&machine=${encodeURIComponent(cfg.machine)}${drug ? `&drug=${encodeURIComponent(drug)}` : ""}`;
+    const res = await fetch(url, { headers: { [AGENT_KEY_HEADER]: cfg.agentKey }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const parsed = AgentRduResponseSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data.hits : null;
   } catch {
     return null;
   }

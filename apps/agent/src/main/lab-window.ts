@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { LabView, Panel } from "../shared/alert-state";
 
 /** DIP, including the transparent shadow margin; rlu's height is only the first guess (the renderer reports its own). */
-const SIZES: Record<Panel, { width: number; height: number }> = { save: { width: 760, height: 560 }, rlu: { width: 420, height: 240 }, opps: { width: 760, height: 560 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
+const SIZES: Record<Panel, { width: number; height: number }> = { save: { width: 760, height: 560 }, rlu: { width: 420, height: 240 }, opps: { width: 760, height: 560 }, rdu: { width: 760, height: 560 }, warn: { width: 600, height: 400 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
 
 /** transparent margin left/right/below the dropdown card (lab.css body.drop padding) */
 const DROP_PAD = 14;
@@ -45,8 +45,11 @@ export class LabWindow {
     return this.win != null;
   }
 
-  /** anchor (DIP): where the dropdown's card starts, i.e. the RLU badge's left edge at the bar's bottom; for "rlu" */
-  open(view: LabView, opts: { offscreen?: boolean; anchor?: { x: number; y: number } } = {}) {
+  /**
+   * anchor (DIP): where the dropdown's card starts, i.e. the RLU badge's left edge at the bar's bottom; for "rlu".
+   * inactive: show without taking focus (a warning popping up while the user types in HOSxP).
+   */
+  open(view: LabView, opts: { offscreen?: boolean; anchor?: { x: number; y: number }; inactive?: boolean } = {}) {
     const drop = view.panel === "rlu";
     if (this.win && drop !== (this.panel === "rlu")) {
       // dropdown <-> centred panel: a fresh window (different position, movability and blur rule)
@@ -103,7 +106,7 @@ export class LabWindow {
       if (drop) win.on("blur", () => this.win === win && this.close());
       const devUrl = process.env.ELECTRON_RENDERER_URL;
       this.ready = devUrl ? win.loadURL(`${devUrl}/lab.html`) : win.loadFile(join(__dirname, "renderer", "lab.html"));
-      void this.ready.then(() => !win.isDestroyed() && !opts.offscreen && win.show());
+      void this.ready.then(() => !win.isDestroyed() && !opts.offscreen && (opts.inactive ? win.showInactive() : win.show()));
     }
     this.update(view);
   }

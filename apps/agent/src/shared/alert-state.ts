@@ -1,4 +1,4 @@
-import type { AgentAuthenResponse, Opportunity, RluItem } from "@bkh/shared";
+import type { AgentAuthenResponse, Opportunity, RduHit, RluItem } from "@bkh/shared";
 
 /** A missing / should-have field of a save check. Never contains names/CID. */
 export type AlertItem = { label: string; severity: "error" | "warning" };
@@ -19,8 +19,10 @@ export type AlertState =
  */
 export type SaveCheck = AlertState & { at: string; name: string | null };
 
-/** Which panel of the lab window is open; "rlu" is a dropdown anchored under its top bar badge. */
-export type Panel = "save" | "rlu" | "opps" | "ofc" | "authen" | "settings";
+/** Which panel of the lab window is open; "rlu" is a dropdown anchored under its top bar badge; "warn" is the warning popup. */
+export type Panel = "save" | "rlu" | "rdu" | "opps" | "ofc" | "authen" | "settings" | "warn";
+/** A warning popup (any module). Lines starting with "•" are an item's headline, the others its muted detail. */
+export type Warning = { title: string; hn: string | null; lines: string[] };
 /** The settings panel ("ตั้งค่าจุดบริการ"): the modules an admin switched on, and the one this machine uses. */
 export type ServicePoint =
   | { state: "loading" }
@@ -39,6 +41,8 @@ export type TopbarStatus = {
   save: SaveCheck | null;
   /** RLU (Rational Lab Use) items in admin order; the badge blinks red when any item warns */
   rlu: { state: "loading" } | { state: "error" } | { state: "ok"; items: RluItem[] };
+  /** RDU (Rational Drug Use) rules the latest visit's saved drugs/diagnoses hit: the "RDU" badge */
+  rdu: { state: "loading" } | { state: "error" } | { state: "ok"; hits: RduHit[] };
   /** the patient's latest visit from /api/agent/authen: name, right (hipdata) and NHSO "ปิดสิทธิ" (close); null date = no visit */
   authen: { state: "loading" } | { state: "error" } | ({ state: "ok" } & Omit<AgentAuthenResponse, "hn">);
   /** opportunities (e.g. PP) the patient's latest visit matches: the "จัดเก็บ" badge */
@@ -47,4 +51,4 @@ export type TopbarStatus = {
 /** top bar renderer -> main */
 export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "panel"; panel: Panel | null; /** badge left edge, CSS px from the bar's left (anchors the RLU dropdown) */ x?: number } | { type: "update" };
 /** What the panel window shows. Sent main -> lab renderer. */
-export type LabView = { hn: string | null; panel: Panel; save: SaveCheck | null; settings: ServicePoint; /** this agent's version, shown in the settings panel */ version?: string; rlu: TopbarStatus["rlu"]; opps: TopbarStatus["opps"]; authen: TopbarStatus["authen"]; /** demo screenshots only: this RLU item starts expanded */ demoExpand?: string };
+export type LabView = { hn: string | null; panel: Panel; save: SaveCheck | null; settings: ServicePoint; /** this agent's version, shown in the settings panel */ version?: string; rlu: TopbarStatus["rlu"]; rdu: TopbarStatus["rdu"]; /** the "warn" panel */ warning?: Warning; opps: TopbarStatus["opps"]; authen: TopbarStatus["authen"]; /** demo screenshots only: this RLU item starts expanded */ demoExpand?: string };
