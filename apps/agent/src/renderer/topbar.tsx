@@ -101,8 +101,9 @@ function Topbar() {
   }
 
   const togglePanel = (panel: Panel) => send({ type: "panel", panel: s.panel === panel ? null : panel });
-  // OFC items have their own button; "จัดเก็บ" counts the rest (PP …)
-  const oppItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category !== "OFC") : null;
+  // OFC and PPB items have their own buttons; "PPFS" counts the rest (PP, DM …), as TopStickly splits them
+  const oppItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category !== "OFC" && o.category !== "PPB") : null;
+  const ppbItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category === "PPB") : null;
   const ofcItems = s.opps.state === "ok" ? s.opps.items.filter((o) => o.category === "OFC") : [];
   const oppCount = oppItems?.length ?? null;
   const ofcCount = ofcItems.length;
@@ -182,12 +183,22 @@ function Topbar() {
       {s.hn && (
         <button
           className={`collect ${oppCount ? "has" : ""} ${s.panel === "opps" ? "active" : ""}`}
-          title={oppCount == null ? (s.opps.state === "loading" ? "กำลังตรวจงาน PP" : "ตรวจงาน PP ไม่ได้") : `งาน PP ที่เข้าเกณฑ์ ${oppCount} รายการ${oppSum > 0 ? ` รวม ${baht(oppSum)}` : ""}`}
+          title={oppCount == null ? (s.opps.state === "loading" ? "กำลังตรวจ PPFS" : "ตรวจ PPFS ไม่ได้") : `PPFS บริการ PP ที่ให้ได้ ${oppCount} รายการ${oppSum > 0 ? ` รวม ${baht(oppSum)}` : ""}`}
           aria-expanded={s.panel === "opps"}
           onClick={() => togglePanel("opps")}
         >
-          งาน PP <span className="count">{oppCount ?? "–"}</span>
+          PPFS <span className="count">{oppCount ?? "–"}</span>
           {oppSum > 0 && <span className="sum">{baht(oppSum)}</span>}
+        </button>
+      )}
+      {s.hn && (
+        <button
+          className={`collect ppb ${ppbItems?.length ? "has" : ""} ${s.panel === "ppb" ? "active" : ""}`}
+          title={ppbItems == null ? (s.opps.state === "loading" ? "กำลังตรวจ PPB" : "ตรวจ PPB ไม่ได้") : `PPB ผลงานพื้นฐานที่ยังไม่ได้บันทึกปีงบนี้ ${ppbItems.length} รายการ`}
+          aria-expanded={s.panel === "ppb"}
+          onClick={() => togglePanel("ppb")}
+        >
+          PPB <span className="count">{ppbItems?.length ?? "–"}</span>
         </button>
       )}
       {s.update && (

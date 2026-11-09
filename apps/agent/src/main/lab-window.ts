@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { LabView, Panel } from "../shared/alert-state";
 
 /** DIP, including the transparent shadow margin. */
-const SIZES: Record<Panel, { width: number; height: number }> = { save: { width: 760, height: 560 }, rlu: { width: 760, height: 560 }, opps: { width: 760, height: 560 }, rdu: { width: 760, height: 560 }, warn: { width: 600, height: 400 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
+const SIZES: Record<Panel, { width: number; height: number }> = { save: { width: 760, height: 560 }, rlu: { width: 760, height: 560 }, opps: { width: 760, height: 560 }, ppb: { width: 760, height: 560 }, rdu: { width: 760, height: 560 }, warn: { width: 600, height: 400 }, authen: { width: 480, height: 320 }, settings: { width: 520, height: 420 }, ofc: { width: 560, height: 440 } };
 
 export class LabWindow {
   private win: BrowserWindow | null = null;

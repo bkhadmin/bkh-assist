@@ -131,7 +131,7 @@ async function runDemo(cfg: AgentConfig) {
       ],
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "UCS", close: null };
-    const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
+    const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "PPB.FLUORIDE", category: "PPB", label: "เคลือบฟลูออไรด์ ยังไม่บันทึกปีงบนี้", detail: { basis: "อายุ 8 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
     const rdu = {
       state: "ok" as const,
       hits: [
@@ -162,6 +162,9 @@ async function runDemo(cfg: AgentConfig) {
     lab.update({ hn: DEMO_HN, panel: "save", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-save.png"), (await lab.capture()).toPNG());
+    lab.update({ hn: DEMO_HN, panel: "ppb", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
+    await new Promise((r) => setTimeout(r, 400));
+    writeFileSync(join(SHOT_DIR, "0-ppb.png"), (await lab.capture()).toPNG());
     lab.update({ hn: DEMO_HN, panel: "rdu", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-rdu.png"), (await lab.capture()).toPNG());
@@ -247,7 +250,7 @@ app.whenReady().then(async () => {
         settings = { state: "loading" };
         void loadSettings();
       }
-      if (panel === "opps" || panel === "ofc") void refreshOpps();
+      if (panel === "opps" || panel === "ppb" || panel === "ofc") void refreshOpps();
       if (panel && (bar.hn || ownPanel(panel))) {
         setBar({ panel });
         lab.open(view());

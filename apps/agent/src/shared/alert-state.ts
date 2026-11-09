@@ -20,7 +20,7 @@ export type AlertState =
 export type SaveCheck = AlertState & { at: string; name: string | null };
 
 /** Which panel of the lab window is open; "rlu" is a dropdown anchored under its top bar badge; "warn" is the warning popup. */
-export type Panel = "save" | "rlu" | "rdu" | "opps" | "ofc" | "authen" | "settings" | "warn";
+export type Panel = "save" | "rlu" | "rdu" | "opps" | "ppb" | "ofc" | "authen" | "settings" | "warn";
 /** A warning popup (any module). Lines starting with "•" are an item's headline, the others its muted detail. */
 export type Warning = { title: string; hn: string | null; lines: string[] };
 /** The settings panel ("ตั้งค่าจุดบริการ"): the modules an admin switched on, and the one this machine uses. */

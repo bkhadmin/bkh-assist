@@ -72,6 +72,7 @@ button:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
   color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.18);
 }
 .collect.has .count { color: #0b3b1f; background: #7ee2b0; }
+.collect.ppb.has .count { color: #0b2a4a; background: #8cc4ff; }
 
 /* NHSO Authen badge (left of RLU) */
 .authen {

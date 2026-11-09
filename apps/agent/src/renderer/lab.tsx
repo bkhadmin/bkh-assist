@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { RduHit } from "@bkh/shared";
-import type { AlertOpportunity, LabView } from "../shared/alert-state";
+import type { AlertOpportunity, LabView, Panel } from "../shared/alert-state";
 import { daysAgo, thaiDate } from "./dates";
 import { baht, priceSum } from "./money";
 import "./lab.css";
@@ -106,8 +106,9 @@ function Rlu({ v }: { v: LabView }) {
   );
 }
 
-/** Items of the "งาน PP" (non-OFC) or "OFC" panel. */
-const panelItems = (opps: LabView["opps"], ofc: boolean) => (opps.state === "ok" ? opps.items.filter((o) => (o.category === "OFC") === ofc) : []);
+/** Items of the "PPFS" (PP and the rest), "PPB" or "OFC" panel. */
+const panelItems = (opps: LabView["opps"], panel: Panel) =>
+  opps.state === "ok" ? opps.items.filter((o) => (o.category === "OFC" ? "ofc" : o.category === "PPB" ? "ppb" : "opps") === panel) : [];
 
 /** ["เข้าเกณฑ์: อายุ 62 ปี", "ทำล่าสุด: 5 พ.ย. 69 (120 วันก่อน)", "ต้องทำภายใน: 30 ก.ย. 70"]; empty when the server sent no detail. */
 function oppDetail(o: AlertOpportunity): string[] {
@@ -120,16 +121,18 @@ function oppDetail(o: AlertOpportunity): string[] {
   return parts;
 }
 
-function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
+function Opps({ opps, panel }: { opps: LabView["opps"]; panel: Panel }) {
   if (opps.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
   if (opps.state === "error") return <Msg>{ERROR}</Msg>;
-  const items = panelItems(opps, ofc);
+  const items = panelItems(opps, panel);
   if (items.length === 0)
     return (
       <Msg>
-        {ofc
+        {panel === "ofc"
           ? "ยังไม่มีรายการ OFC ที่เข้าเกณฑ์ (admin เพิ่ม/เปิดรายการหมวด OFC และเปิดตัวเลือกเสริมของ module ได้ที่หน้า admin)"
-          : "visit ล่าสุดของคนไข้นี้ไม่เข้าเกณฑ์รายการที่เปิดไว้"}
+          : panel === "ppb"
+            ? "บันทึกผลงาน PPB ครบแล้วในปีงบนี้"
+            : "visit ล่าสุดของคนไข้นี้ไม่เข้าเกณฑ์รายการที่เปิดไว้"}
       </Msg>
     );
   return (
@@ -147,7 +150,7 @@ function Opps({ opps, ofc }: { opps: LabView["opps"]; ofc: boolean }) {
               </small>
             )}
           </span>
-          {o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้งราคา (icode หรือราคาเหมาจ่าย) ในหน้า admin">–</span>}
+          {panel === "ppb" ? null : o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้งราคา (icode หรือราคาเหมาจ่าย) ในหน้า admin">–</span>}
         </li>
       ))}
     </ul>
@@ -336,7 +339,8 @@ const PANELS: Record<Exclude<LabView["panel"], "warn">, { title: string; foot: s
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
   authen: { title: "ปิดสิทธิ · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (การปิดสิทธิใน HOSxP: nhso_confirm_privilege)" },
-  opps: { title: "งาน PP · บริการที่เข้าเกณฑ์", foot: "ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
+  opps: { title: "PPFS · บริการ PP ที่ให้ได้", foot: "ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
+  ppb: { title: "PPB · ผลงานพื้นฐานที่ยังไม่ได้บันทึกปีงบนี้", foot: "บริการพื้นฐานที่ต้องบันทึกปีละครั้ง (นับเป็นผลงาน PPB) · ประเมินจากปีงบประมาณปัจจุบัน" },
 };
 
 function Lab() {
@@ -377,13 +381,13 @@ function Lab() {
         ) : v.panel === "settings" ? (
           <Settings settings={v.settings} />
         ) : (
-          <Opps opps={v.opps} ofc={v.panel === "ofc"} />
+          <Opps opps={v.opps} panel={v.panel} />
         )}
       </div>
-      {(v.panel === "opps" || v.panel === "ofc") && panelItems(v.opps, v.panel === "ofc").length > 0 && (
+      {(v.panel === "opps" || v.panel === "ofc") && panelItems(v.opps, v.panel).length > 0 && (
         <div className="total">
           <span>รวมค่าบริการที่จัดเก็บได้</span>
-          <b>{baht(priceSum(panelItems(v.opps, v.panel === "ofc")))}</b>
+          <b>{baht(priceSum(panelItems(v.opps, v.panel)))}</b>
         </div>
       )}
       {v.panel === "save" && v.save && v.save.kind !== "checking" && (
