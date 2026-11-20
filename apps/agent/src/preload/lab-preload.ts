@@ -25,5 +25,9 @@ contextBridge.exposeInMainWorld("bkhLab", {
   setServicePoint(code: string) {
     ipcRenderer.send("lab:service-point", code);
   },
+  /** settings panel: test this server address and keep it when it answers */
+  setServerUrl(url: string) {
+    ipcRenderer.send("lab:server-url", url);
+  },
   /** RLU dropdown: its content height (CSS px), so the window fits it */
 });

@@ -120,6 +120,13 @@ td { padding: 10px 18px; border-top: 1px solid var(--border); font-variant-numer
 .point small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
 .actions .ok { color: var(--green); font-size: 12.5px; font-weight: 600; }
+.server { border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.server-row { display: flex; gap: 8px; }
+.server-row input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-variant-numeric: tabular-nums; color: var(--text); background: var(--surface); }
+.server-row input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+.server .ok, .server .bad { font-size: 12.5px; font-weight: 600; }
+.server .ok { color: var(--green); }
+.server .bad { color: var(--red, #c0392b); }
 .primary { padding: 7px 18px; border-radius: 8px; font-weight: 700; color: #ffffff; background: var(--brand); }
 .primary:disabled { opacity: 0.45; cursor: default; }
 
