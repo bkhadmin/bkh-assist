@@ -1,5 +1,5 @@
 /** Lab lookups for the top bar (through the server; the agent never talks to HIS directly). */
-import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, AgentRluResponseSchema, AgentRduResponseSchema, type AgentRduResponse, type AgentAuthenResponse, type AgentOpportunitiesResponse, type AgentRluResponse } from "@bkh/shared";
+import { AGENT_KEY_HEADER, AgentAuthenResponseSchema, AgentConfigResponseSchema, AgentServicePointResponseSchema, type AgentServicePointResponse, AgentOpportunitiesResponseSchema, AgentRluResponseSchema, AgentRduResponseSchema, type AgentRduResponse, type AgentAuthenResponse, type AgentOpportunitiesResponse, type AgentRluResponse } from "@bkh/shared";
 import type { AgentConfig } from "./config";
 
 /** RLU items of a patient (every active item, admin order, with its last 3 results); null when the server cannot answer. */
@@ -60,6 +60,18 @@ export async function fetchAuthen(cfg: AgentConfig, hn: string): Promise<Omit<Ag
 }
 
 /** The modules this machine may use and the one it uses; with `module`, first make that the machine's module. */
+/** Before switching servers: does `url` answer as a bkh_assist server that accepts this machine's agent key? null = yes, else why not. */
+export async function testServer(cfg: AgentConfig, url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${url}/api/agent/config?machine=${encodeURIComponent(cfg.machine)}`, { headers: { [AGENT_KEY_HEADER]: cfg.agentKey }, signal: AbortSignal.timeout(5000) });
+    if (res.status === 401) return "server ไม่รับ agentKey ของเครื่องนี้";
+    if (!res.ok) return `server ตอบกลับผิดพลาด (${res.status})`;
+    return AgentConfigResponseSchema.safeParse(await res.json()).success ? null : "ที่อยู่นี้ไม่ใช่ server ของเตือนสติ";
+  } catch {
+    return "เชื่อมต่อที่อยู่นี้ไม่ได้";
+  }
+}
+
 export async function servicePoint(cfg: AgentConfig, module?: string): Promise<AgentServicePointResponse | null> {
   try {
     const res = await fetch(`${cfg.serverUrl}/api/agent/service-point?machine=${encodeURIComponent(cfg.machine)}`, {

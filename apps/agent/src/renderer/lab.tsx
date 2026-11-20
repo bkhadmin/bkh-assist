@@ -8,7 +8,7 @@ import "./lab.css";
 
 declare global {
   interface Window {
-    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; ack(): void; setServicePoint(code: string): void; };
+    bkhLab: { onView(cb: (v: LabView) => void): void; close(): void; ack(): void; setServicePoint(code: string): void; setServerUrl(url: string): void; };
   }
 }
 
@@ -294,6 +294,33 @@ function Authen({ authen: a }: { authen: LabView["authen"] }) {
 }
 
 /** "ตั้งค่าจุดบริการ": pick the module (service point) this machine checks. */
+/** Server address: shown even when the current server cannot be reached, so a moved server can be fixed here. */
+function ServerForm({ server }: { server: NonNullable<LabView["server"]> }) {
+  const [text, setText] = useState(server.url);
+  const busy = server.state === "testing";
+  return (
+    <form
+      className="points server"
+      onSubmit={(e) => {
+        e.preventDefault();
+        window.bkhLab.setServerUrl(text);
+      }}
+    >
+      <fieldset disabled={busy}>
+        <legend>ที่อยู่ server</legend>
+        <div className="server-row">
+          <input type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder="http://10.10.10.159:3020" aria-label="ที่อยู่ server" spellCheck={false} />
+          <button type="submit" className="primary" disabled={busy || !text.trim() || text.trim() === server.url}>
+            {busy ? "กำลังทดสอบ…" : "ทดสอบและบันทึก"}
+          </button>
+        </div>
+        {server.state === "error" && <span className="bad" role="alert">{server.message}</span>}
+        {server.state === "saved" && <span className="ok">เชื่อมต่อได้ บันทึกแล้ว ใช้ server นี้ทันที</span>}
+      </fieldset>
+    </form>
+  );
+}
+
 function Settings({ settings: st }: { settings: LabView["settings"] }) {
   const [choice, setChoice] = useState<string | null>(null);
   if (st.state === "loading") return <Msg>กำลังโหลด…</Msg>;
@@ -337,7 +364,7 @@ const PANELS: Record<Exclude<LabView["panel"], "warn">, { title: string; foot: s
   rdu: { title: "RDU · การใช้ยาอย่างสมเหตุผล", foot: "ประเมินจาก visit ล่าสุด ตามตัวชี้วัด Service Plan สาขา RDU รายครั้ง" },
   save: { title: "ผลตรวจการบันทึก", foot: "กรอกเพิ่มใน HOSxP แล้วกดบันทึกอีกครั้ง ผลจะอัปเดตที่แถบด้านบน" },
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
-  settings: { title: "ตั้งค่าจุดบริการ", foot: "เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
+  settings: { title: "ตั้งค่าจุดบริการ", foot: "ที่อยู่ server ทดสอบก่อนบันทึก · เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
   authen: { title: "ปิดสิทธิ · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (การปิดสิทธิใน HOSxP: nhso_confirm_privilege)" },
   opps: { title: "PPFS · บริการ PP ที่ให้ได้", foot: "ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
   ppb: { title: "PPB · ผลงานพื้นฐานที่ยังไม่ได้บันทึกปีงบนี้", foot: "บริการพื้นฐานที่ต้องบันทึกปีละครั้ง (นับเป็นผลงาน PPB) · ประเมินจากปีงบประมาณปัจจุบัน" },
@@ -379,7 +406,10 @@ function Lab() {
         ) : v.panel === "authen" ? (
           <Authen authen={v.authen} />
         ) : v.panel === "settings" ? (
-          <Settings settings={v.settings} />
+          <>
+            {v.server && <ServerForm server={v.server} />}
+            <Settings settings={v.settings} />
+          </>
         ) : (
           <Opps opps={v.opps} panel={v.panel} />
         )}

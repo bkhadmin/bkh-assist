@@ -10,13 +10,13 @@ import { app, Menu, Tray } from "electron";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RduHit } from "@bkh/shared";
-import type { AlertState, LabView, Panel, SaveCheck, ServicePoint, TopbarStatus, Warning } from "../shared/alert-state";
+import type { AlertState, LabView, Panel, SaveCheck, ServerSetting, ServicePoint, TopbarStatus, Warning } from "../shared/alert-state";
 import { Checker, type CheckOutcome } from "./checker";
-import { loadConfig, type AgentConfig } from "./config";
+import { loadConfig, normalizeServerUrl, saveServerUrl, type AgentConfig } from "./config";
 import { ModuleConfig, REFRESH_MS } from "./module-config";
 import { isHosxpWindow, savesHidden, shownDrug, shownHn } from "./hosxp";
 import { watchLabTicks } from "./lab-tick";
-import { fetchAuthen, fetchOpportunities, fetchRdu, fetchRlu, servicePoint } from "./lab";
+import { fetchAuthen, fetchOpportunities, fetchRdu, fetchRlu, servicePoint, testServer } from "./lab";
 import { LabWindow } from "./lab-window";
 import { TopbarWindow } from "./topbar-window";
 import { trayIcon } from "./tray-icon";
@@ -153,7 +153,7 @@ async function runDemo(cfg: AgentConfig) {
     lab.update({ hn: DEMO_HN, panel: "authen", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-authen.png"), (await lab.capture()).toPNG());
-    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, version: app.getVersion(), rlu, rdu, opps, authen: noAuthen });
+    lab.update({ hn: DEMO_HN, panel: "settings", save, settings: demoSettings, server: { url: "http://10.10.10.159:3020", state: "saved" }, version: app.getVersion(), rlu, rdu, opps, authen: noAuthen });
     await new Promise((r) => setTimeout(r, 400));
     writeFileSync(join(SHOT_DIR, "0-settings.png"), (await lab.capture()).toPNG());
     lab.update({ hn: DEMO_HN, panel: "ofc", save, settings: demoSettings, rlu, rdu, opps, authen: noAuthen });
@@ -192,7 +192,8 @@ app.whenReady().then(async () => {
   // Their buttons open a separate window: centred, or for RLU a dropdown under its badge.
   let bar: TopbarStatus = { hn: null, panel: null, update: null, blind: false, save: null, authen: { state: "loading" }, rlu: { state: "loading" }, rdu: { state: "loading" }, opps: { state: "loading" } };
   let settings: ServicePoint = { state: "loading" };
-  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, version: app.getVersion(), rlu: bar.rlu, rdu: bar.rdu, opps: bar.opps, authen: bar.authen });
+  let server: ServerSetting = { url: cfg.serverUrl, state: "idle" };
+  const view = () => ({ hn: bar.hn, panel: bar.panel!, save: bar.save, settings, server, version: app.getVersion(), rlu: bar.rlu, rdu: bar.rdu, opps: bar.opps, authen: bar.authen });
   const showSettings = (next: ServicePoint) => {
     settings = next;
     if (lab.isOpen() && bar.panel === "settings") lab.update(view());
@@ -227,6 +228,31 @@ app.whenReady().then(async () => {
       void refreshOpps();
     }
   };
+  const showServer = (next: ServerSetting) => {
+    server = next;
+    if (lab.isOpen() && bar.panel === "settings") lab.update(view());
+  };
+  // Settings panel: a new server address is tested first, then kept in agent.json and used at once (no restart).
+  const changeServer = async (input: string) => {
+    const url = normalizeServerUrl(input);
+    if (!url) return showServer({ url: cfg.serverUrl, state: "error", message: "ที่อยู่ไม่ถูกต้อง ตัวอย่าง http://10.10.10.159:3020" });
+    if (url === cfg.serverUrl) return showServer({ url, state: "idle" });
+    showServer({ url: cfg.serverUrl, state: "testing" });
+    const problem = await testServer(cfg, url);
+    if (problem) return showServer({ url: cfg.serverUrl, state: "error", message: problem });
+    try {
+      saveServerUrl(source, url);
+    } catch (err) {
+      log(`saving server url failed: ${(err as NodeJS.ErrnoException).code ?? err}`);
+      return showServer({ url: cfg.serverUrl, state: "error", message: "บันทึกไม่ได้: ต้องเปิดเตือนสติด้วยสิทธิ์ Admin" });
+    }
+    log(`server changed to ${url}`);
+    cfg.serverUrl = url; // cfg is shared by the checker, module config and every fetch
+    showServer({ url, state: "saved" });
+    await modules.refresh();
+    void loadSettings();
+    if (bar.hn) loadPatient(bar.hn);
+  };
   const ownPanel = (p: Panel) => p === "settings" || p === "save";
   const setBar = (patch: Partial<TopbarStatus>) => {
     bar = { ...bar, ...patch };
@@ -243,11 +269,13 @@ app.whenReady().then(async () => {
       setBar({ save: null }); // "รับทราบ"
       lab.close();
     },
+    (url) => void changeServer(url),
   );
   const topbar = new TopbarWindow({
     onPanel: (panel) => {
       if (panel === "settings") {
         settings = { state: "loading" };
+        server = { url: cfg.serverUrl, state: "idle" };
         void loadSettings();
       }
       if (panel === "opps" || panel === "ppb" || panel === "ofc") void refreshOpps();
