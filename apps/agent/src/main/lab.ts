@@ -32,13 +32,13 @@ export async function fetchRdu(cfg: AgentConfig, hn: string, drug?: string): Pro
 }
 
 /** Opportunities (e.g. PP) of the patient's latest visit for this machine's modules; null when the server cannot answer. */
-export async function fetchOpportunities(cfg: AgentConfig, hn: string): Promise<AgentOpportunitiesResponse["items"] | null> {
+export async function fetchOpportunities(cfg: AgentConfig, hn: string): Promise<Pick<AgentOpportunitiesResponse, "items" | "all"> | null> {
   try {
     const url = `${cfg.serverUrl}/api/agent/opportunities?hn=${encodeURIComponent(hn)}&machine=${encodeURIComponent(cfg.machine)}`;
     const res = await fetch(url, { headers: { [AGENT_KEY_HEADER]: cfg.agentKey }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const parsed = AgentOpportunitiesResponseSchema.safeParse(await res.json());
-    return parsed.success ? parsed.data.items : null;
+    return parsed.success ? { items: parsed.data.items, all: parsed.data.all } : null;
   } catch {
     return null;
   }

@@ -106,9 +106,10 @@ function Rlu({ v }: { v: LabView }) {
   );
 }
 
-/** Items of the "PPFS" (PP and the rest), "PPB" or "OFC" panel. */
-const panelItems = (opps: LabView["opps"], panel: Panel) =>
-  opps.state === "ok" ? opps.items.filter((o) => (o.category === "OFC" ? "ofc" : o.category === "PPB" ? "ppb" : "opps") === panel) : [];
+/** Which panel lists an item: "PPFS" (PP and the rest), "PPB" or "OFC". */
+const panelOf = (o: AlertOpportunity): Panel => (o.category === "OFC" ? "ofc" : o.category === "PPB" ? "ppb" : "opps");
+/** Matched items of a panel. */
+const panelItems = (opps: LabView["opps"], panel: Panel) => (opps.state === "ok" ? opps.items.filter((o) => panelOf(o) === panel) : []);
 
 /** ["เข้าเกณฑ์: อายุ 62 ปี", "ทำล่าสุด: 5 พ.ย. 69 (120 วันก่อน)", "ต้องทำภายใน: 30 ก.ย. 70"]; empty when the server sent no detail. */
 function oppDetail(o: AlertOpportunity): string[] {
@@ -125,7 +126,10 @@ function Opps({ opps, panel }: { opps: LabView["opps"]; panel: Panel }) {
   if (opps.state === "loading") return <Msg>กำลังตรวจ…</Msg>;
   if (opps.state === "error") return <Msg>{ERROR}</Msg>;
   const items = panelItems(opps, panel);
-  if (items.length === 0)
+  // PPFS lists every item set for this machine: the matched ones highlighted on top, the rest dimmed below
+  const matched = new Set(items.map((o) => o.code));
+  const rest = panel === "opps" ? (opps.all ?? []).filter((o) => panelOf(o) === panel && !matched.has(o.code)) : [];
+  if (items.length === 0 && rest.length === 0)
     return (
       <Msg>
         {panel === "ofc"
@@ -137,8 +141,9 @@ function Opps({ opps, panel }: { opps: LabView["opps"]; panel: Panel }) {
     );
   return (
     <ul className="opps">
+      {items.length === 0 && <li className="none-hit">visit ล่าสุดของคนไข้นี้ไม่เข้าเกณฑ์รายการใด</li>}
       {items.map((o, i) => (
-        <li key={i}>
+        <li key={i} className={panel === "opps" ? "hit" : undefined}>
           <span className="cat">{o.category}</span>
           <span className="label">
             {o.label}
@@ -151,6 +156,18 @@ function Opps({ opps, panel }: { opps: LabView["opps"]; panel: Panel }) {
             )}
           </span>
           {panel === "ppb" ? null : o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none" title="ยังไม่ได้ตั้งราคา (icode หรือราคาเหมาจ่าย) ในหน้า admin">–</span>}
+        </li>
+      ))}
+      {rest.map((o) => (
+        <li key={o.code} className="off" title="visit ล่าสุดไม่เข้าเกณฑ์รายการนี้">
+          <span className="cat">{o.category}</span>
+          <span className="label">
+            {o.label}
+            <small className="detail">
+              <span>ไม่เข้าเกณฑ์</span>
+            </small>
+          </span>
+          {o.price != null ? <span className="price">{baht(o.price)}</span> : <span className="price none">–</span>}
         </li>
       ))}
     </ul>
@@ -366,7 +383,7 @@ const PANELS: Record<Exclude<LabView["panel"], "warn">, { title: string; foot: s
   ofc: { title: "สิทธิกรมบัญชีกลาง (OFC) · ควรให้บริการเพิ่ม", foot: "สิทธิ OFC เบิกตามรายการบริการ · รายการแก้ได้ที่หน้า admin › โอกาสเพิ่มรายได้ หมวด OFC" },
   settings: { title: "ตั้งค่าจุดบริการ", foot: "ที่อยู่ server ทดสอบก่อนบันทึก · เลือก module ที่เครื่องนี้ใช้ตรวจการบันทึก (รายการจาก module ที่ admin เปิดไว้)" },
   authen: { title: "ปิดสิทธิ · สปสช.", foot: "ดูจาก visit ล่าสุดของคนไข้ (การปิดสิทธิใน HOSxP: nhso_confirm_privilege)" },
-  opps: { title: "PPFS · บริการ PP ที่ให้ได้", foot: "ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
+  opps: { title: "PPFS · บริการ PP ที่ให้ได้", foot: "รายการที่เข้าเกณฑ์อยู่ด้านบน (สีเขียว) รายการอื่นที่ตั้งไว้แสดงเป็นสีจาง · ประเมินจาก visit ล่าสุด ตามรายการที่ admin เปิดไว้ใน module ของเครื่องนี้" },
   ppb: { title: "PPB · ผลงานพื้นฐานที่ยังไม่ได้บันทึกปีงบนี้", foot: "บริการพื้นฐานที่ต้องบันทึกปีละครั้ง (นับเป็นผลงาน PPB) · ประเมินจากปีงบประมาณปัจจุบัน" },
 };
 

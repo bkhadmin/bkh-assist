@@ -4,7 +4,7 @@ import type { AgentAuthenResponse, Opportunity, RduHit, RluItem } from "@bkh/sha
 export type AlertItem = { label: string; severity: "error" | "warning" };
 /** Add-on service hint (patient qualifies for a billable service). Not missing data. */
 /** price: baht from the HOSxP items set in admin; null/absent = no icode set */
-export type AlertOpportunity = { category: string; label: string; price?: number | null; detail?: Opportunity["detail"] };
+export type AlertOpportunity = { code?: string; category: string; label: string; price?: number | null; detail?: Opportunity["detail"] };
 
 /** Result of a HOSxP save check. Shown only on the top bar ("บันทึก" badge) and its large panel. */
 export type AlertState =
@@ -46,7 +46,8 @@ export type TopbarStatus = {
   /** the patient's latest visit from /api/agent/authen: name, right (hipdata) and NHSO "ปิดสิทธิ" (close); null date = no visit */
   authen: { state: "loading" } | { state: "error" } | ({ state: "ok" } & Omit<AgentAuthenResponse, "hn">);
   /** opportunities (e.g. PP) the patient's latest visit matches: the "จัดเก็บ" badge */
-  opps: { state: "loading" } | { state: "error" } | { state: "ok"; items: AlertOpportunity[] };
+  /** items: matched by the latest visit; all: every item switched on for this machine (the PPFS panel lists the rest dimmed) */
+  opps: { state: "loading" } | { state: "error" } | { state: "ok"; items: AlertOpportunity[]; all?: AlertOpportunity[] };
 };
 /** top bar renderer -> main */
 export type TopbarCommand = { type: "collapse" } | { type: "expand" } | { type: "panel"; panel: Panel | null } | { type: "update" };

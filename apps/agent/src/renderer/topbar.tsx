@@ -187,6 +187,8 @@ function Topbar() {
           aria-expanded={s.panel === "opps"}
           onClick={() => togglePanel("opps")}
         >
+          {/* blinks (green) when the latest visit matches a PPFS item; key restarts it for a new patient or count */}
+          {oppCount ? <span key={`${s.hn}-${oppCount}`} className="light green" /> : null}
           PPFS <span className="count">{oppCount ?? "–"}</span>
           {oppSum > 0 && <span className="sum">{baht(oppSum)}</span>}
         </button>

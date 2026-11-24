@@ -138,6 +138,12 @@ td { padding: 10px 18px; border-top: 1px solid var(--border); font-variant-numer
 .opps .detail span + span::before { content: "·"; margin-right: 6px; }
 .opps .price { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--green); }
 .opps .price.none { color: var(--muted); font-weight: 400; }
+/* PPFS: matched items highlighted, the other items set for this machine dimmed */
+.opps li.hit { background: var(--green-soft); box-shadow: inset 3px 0 0 var(--green); }
+.opps li.off { background: none; border: 1px dashed var(--border); font-weight: 400; opacity: 0.6; }
+.opps li.off .cat { color: var(--muted); background: var(--surface-2); }
+.opps li.off .price { color: var(--muted); font-weight: 400; }
+.opps li.none-hit { background: none; color: var(--muted); font-weight: 400; }
 .total { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 24px; border-top: 1px solid var(--border); font-weight: 600; }
 .total b { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--green); }
 
