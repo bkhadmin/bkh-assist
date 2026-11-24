@@ -47,3 +47,11 @@ test("pixel classifier", () => {
   const blank = capture({ ticked: false, painted: false });
   assert.equal(classifyCheckGlyph(blank.bits, blank.W, blank.H), null); // nothing painted
 });
+
+const { parseThaiDate } = await import("./hosxp");
+
+test("visit list dates: d/m/yyyy in Buddhist years", () => {
+  assert.equal(parseThaiDate("19/5/2567"), "2024-05-19");
+  assert.equal(parseThaiDate(" 1/12/2569 "), "2026-12-01");
+  for (const bad of ["", "31/2/2567", "19/13/2567", "2024-05-19", "19/5/67", "x"]) assert.equal(parseThaiDate(bad), null, bad);
+});

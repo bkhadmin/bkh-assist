@@ -18,6 +18,12 @@ export const CheckRequestSchema = z.object({
   vn: z.string().trim().min(1).max(20).optional(),
   /** When the user clicked save, ISO 8601 with offset or Z, e.g. "2026-11-05T09:15:00+07:00". */
   savedAt: z.iso.datetime({ offset: true }),
+  /**
+   * The visit list's date filter behind a diagnosis-entry save (งานเวชระเบียน), "YYYY-MM-DD": with the HN it names the
+   * visit when the save wrote nothing (no change), so the save time cannot. Older servers ignore it.
+   */
+  visitFrom: z.iso.date().optional(),
+  visitTo: z.iso.date().optional(),
 });
 export type CheckRequest = z.infer<typeof CheckRequestSchema>;
 

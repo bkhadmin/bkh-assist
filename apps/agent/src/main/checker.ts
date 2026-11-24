@@ -19,7 +19,7 @@ export class Checker {
   constructor(private cfg: AgentConfig) {}
 
   /** Start checking a save; a newer save cancels the previous one. */
-  async check(input: { module: string; hn: string | null; savedAt: Date }): Promise<CheckOutcome> {
+  async check(input: { module: string; hn: string | null; savedAt: Date; visitRange?: { from: string; to: string } }): Promise<CheckOutcome> {
     this.current?.abort();
     const ctrl = new AbortController();
     this.current = ctrl;
@@ -29,6 +29,7 @@ export class Checker {
       module: input.module,
       savedAt: input.savedAt.toISOString(),
       ...(input.hn ? { hn: input.hn } : {}),
+      ...(input.visitRange ? { visitFrom: input.visitRange.from, visitTo: input.visitRange.to } : {}),
     };
     const deadline = input.savedAt.getTime() + this.cfg.pollTimeoutMs;
     let lastError = "";

@@ -73,12 +73,52 @@ export function readHn(form: Hwnd): string | null {
   return findHnEdit(form)?.hn ?? null;
 }
 
-export type ScreenInfo = { form: string; formHwnd: Hwnd; hn: string | null; bounds: w.Rect };
+/** visitRange: the date filter of the visit list behind a diagnosis-entry save (see readVisitRange). */
+export type ScreenInfo = { form: string; formHwnd: Hwnd; hn: string | null; bounds: w.Rect; visitRange?: VisitRange };
+export type VisitRange = { from: string; to: string };
 
 export function describeScreen(saveButton: Hwnd): ScreenInfo | null {
   const form = ownerForm(saveButton);
   if (!form) return null;
-  return { form: w.className(form), formHwnd: form, hn: readHn(form), bounds: w.rectOf(w.rootOf(form)) };
+  const cls = w.className(form);
+  const visitRange = cls === DIAGNOSIS_ENTRY_FORM ? (readVisitRange() ?? undefined) : undefined;
+  return { form: cls, formHwnd: form, hn: readHn(form), bounds: w.rectOf(w.rootOf(form)), ...(visitRange && { visitRange }) };
+}
+
+/**
+ * งานเวชระเบียน codes in TPatientOPDVisitDiagnosisEntryForm, opened from TPatientOPDVisitListForm (an MDI child of
+ * TMainForm). The dialog shows no VN or visit date, and a save without changes writes nothing, so the server cannot
+ * find the visit by save time; the list's date filter (two TcxDateEdit, d/m/yyyy in Buddhist years, e.g.
+ * "19/5/2567") plus the dialog's HN names it instead. Seen on HOSxP 4.69.4.28, 2026-11-24.
+ */
+const DIAGNOSIS_ENTRY_FORM = "TPatientOPDVisitDiagnosisEntryForm";
+const VISIT_LIST_FORM = "TPatientOPDVisitListForm";
+
+/** "19/5/2567" -> "2024-05-19"; null unless a real date in Buddhist years. */
+export function parseThaiDate(text: string): string | null {
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(text);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3]) - 543];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1900 || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+/** The visit list's date filter (left edit = from, right = to); null when the list is not open or unreadable. */
+export function readVisitRange(): VisitRange | null {
+  for (const top of w.topWindows().filter(isHosxpWindow)) {
+    const list = w.children(top).find((h) => w.className(h) === VISIT_LIST_FORM);
+    if (!list) continue;
+    const dates = w
+      .children(list)
+      .filter((h) => w.className(h) === "TcxDateEdit" && w.isVisible(h))
+      .map((h) => ({ left: w.rectOf(h).left, iso: parseThaiDate(w.windowTextOrNull(h, 20) ?? "") }))
+      .sort((a, b) => a.left - b.left);
+    if (dates.length !== 2 || !dates[0].iso || !dates[1].iso) return null;
+    const [from, to] = [dates[0].iso, dates[1].iso].sort();
+    return { from, to };
+  }
+  return null;
 }
 
 /** HN currently shown on a HOSxP form; null if the form is gone or shows no HN. */
