@@ -58,6 +58,18 @@ export const Doctorcheck: Module = {
             FROM ovstdiag WHERE vn = ?`,
     },
     {
+      code: "Doctorcheck.UPT_Z32",
+      label: "สั่ง Urine pregnancy test ต้องลงรหัส Z32.0 หรือ Z32.1",
+      severity: "error",
+      // lab 67 = "Pregnancy Test (UPT)" on bkhosxp (cancelled orders are deleted, no flag to filter). Passes when the
+      // visit has no UPT order, or has Z320/Z321. 2026-11-24: 711 of 995 OPD visits with a UPT in a year had it (71%).
+      // EXPLAIN: ref on lab_head.vn + eq_ref lab_order PK, ref on ovstdiag ix_vn_icd_unique (~3 ms).
+      sql: `SELECT (NOT EXISTS(SELECT 1 FROM lab_head h JOIN lab_order o ON o.lab_order_number = h.lab_order_number
+                                WHERE h.vn = p.vn AND o.lab_items_code = '67')
+              OR EXISTS(SELECT 1 FROM ovstdiag d WHERE d.vn = p.vn AND d.icd10 REGEXP '^Z32[01]')) AS ok
+            FROM (SELECT ? AS vn) p`,
+    },
+    {
       code: "Doctorcheck.PE",
       label: "การตรวจร่างกาย (PE)",
       severity: "warning",
