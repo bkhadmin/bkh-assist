@@ -78,6 +78,26 @@ export async function findByTime(from: string, to: string): Promise<VisitCandida
   return hisQuery<VisitCandidate>(sql, [from, to, from, to]);
 }
 
+/**
+ * The patient's visits on the dates of the visit list behind a งานเวชระเบียน diagnosis save (see VISIT_RANGE_AFTER_MS).
+ * EXPLAIN: ref on ovst ix_hn. updatedAt = the visit date and time (there is no save time to show).
+ */
+export async function findByHnAndDates(hn: string, from: string, to: string): Promise<VisitCandidate[]> {
+  const sql = `SELECT vn, hn, CONCAT(vstdate, ' ', vsttime) AS updatedAt
+    FROM ovst
+    WHERE hn = ? AND vstdate BETWEEN ? AND ?
+    ORDER BY vstdate DESC, vsttime DESC
+    LIMIT 11`;
+  return hisQuery<VisitCandidate>(sql, [hn, from, to]);
+}
+
+/**
+ * A diagnosis save that changed nothing writes nothing, so the save time never finds it. After this long without a
+ * time match, the visit list's date filter + HN decide instead. Not at once: a save that does write must be checked
+ * after HOSxP has written it (the agent polls every 2 s for 30 s).
+ */
+export const VISIT_RANGE_AFTER_MS = 8000;
+
 export type Resolution =
   | { kind: "found"; visit: VisitCandidate }
   | { kind: "not_found" }
@@ -90,17 +110,24 @@ const normalize = (c: VisitCandidate): VisitCandidate => ({
   updatedAt: str(c.updatedAt),
 });
 
-/** vn given → use it; else hn + window around savedAt; else time-only window. */
-export async function resolveVisit(input: { vn?: string; hn?: string; savedAt: string }): Promise<Resolution> {
+/** vn given → use it; else hn + window around savedAt; else time-only window; then hn + visit list dates (see above). */
+export async function resolveVisit(
+  input: { vn?: string; hn?: string; savedAt: string; visitFrom?: string; visitTo?: string },
+  now = Date.now(),
+): Promise<Resolution> {
   if (input.vn) {
     const visit = await findByVn(input.vn);
     return visit ? { kind: "found", visit: normalize(visit) } : { kind: "not_found" };
   }
 
   const savedAt = new Date(input.savedAt);
-  const candidates = input.hn
+  let candidates = input.hn
     ? await findByHnAndTime(input.hn, ...windowAround(savedAt, HN_WINDOW))
     : await findByTime(...windowAround(savedAt, TIME_ONLY_WINDOW));
+  if (!candidates.length && input.hn && input.visitFrom && input.visitTo && now - savedAt.getTime() >= VISIT_RANGE_AFTER_MS) {
+    const [from, to] = [input.visitFrom, input.visitTo].sort();
+    candidates = await findByHnAndDates(input.hn, from, to);
+  }
 
   // The same VN may come back more than once if the SQL joins several tables.
   const unique = [...new Map(candidates.map((c) => [str(c.vn), normalize(c)])).values()];

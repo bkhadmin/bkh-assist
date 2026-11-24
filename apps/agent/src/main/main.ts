@@ -383,7 +383,7 @@ app.whenReady().then(async () => {
   };
   watcher.on("save", async (ev) => {
     const mod = modules.pick(ev.form);
-    log(`save trigger=${ev.trigger} form=${ev.form} hn=${ev.hn ? "yes" : "no"} module=${mod?.code ?? "(none: not checked)"}`);
+    log(`save trigger=${ev.trigger} form=${ev.form} hn=${ev.hn ? "yes" : "no"}${ev.visitRange ? ` visits=${ev.visitRange.from}..${ev.visitRange.to}` : ""} module=${mod?.code ?? "(none: not checked)"}`);
     if (!mod) return; // this machine does not check this HOSxP screen
     showSave(ev, { kind: "checking", hn: ev.hn, module: mod.label });
     if (ev.hn) {
@@ -397,7 +397,7 @@ app.whenReady().then(async () => {
           if (bar.save && bar.save.kind !== "error" && bar.save.hn === hn) setBar({ save: { ...bar.save, name: saveName.name } });
         });
     }
-    const outcome = await checker.check({ module: mod.code, hn: ev.hn, savedAt: ev.savedAt });
+    const outcome = await checker.check({ module: mod.code, hn: ev.hn, savedAt: ev.savedAt, visitRange: ev.visitRange });
     if (outcome.kind === "cancelled") return; // a newer save took over
     if (outcome.kind === "denied") {
       // the admin changed this machine's modules since our last refresh: pick up the new list
