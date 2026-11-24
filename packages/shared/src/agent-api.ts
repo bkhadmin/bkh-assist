@@ -210,6 +210,8 @@ export const AgentOpportunitiesResponseSchema = z.object({
   /** the visit that was evaluated; null = no visit, or no opportunity is switched on for this machine */
   vn: z.string().nullable(),
   items: z.array(OpportunitySchema),
+  /** every item switched on for this machine, matched or not (price, no detail), so a panel can list them all; default [] for older servers */
+  all: z.array(OpportunitySchema.pick({ code: true, category: true, label: true, price: true })).default([]),
 });
 export type AgentOpportunitiesResponse = z.infer<typeof AgentOpportunitiesResponseSchema>;
 

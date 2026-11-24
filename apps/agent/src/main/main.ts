@@ -131,7 +131,7 @@ async function runDemo(cfg: AgentConfig) {
       ],
     };
     const noAuthen = { state: "ok" as const, name: "นายทดสอบ ระบบเตือนสติ", visitDate: "2026-11-06", visitAt: "2026-11-06 08:15", authCode: null, hipdata: "UCS", close: null };
-    const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "PPB.FLUORIDE", category: "PPB", label: "เคลือบฟลูออไรด์ ยังไม่บันทึกปีงบนี้", detail: { basis: "อายุ 8 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }] };
+    const opps = { state: "ok" as const, items: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60, detail: { basis: "อายุ 62 ปี", lastDone: "2024-03-12", due: "ก่อนอายุครบ 71 ปี" } }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี", detail: { basis: "อายุ 62 ปี", lastDone: null, due: "2027-09-30" } }, { code: "PPB.FLUORIDE", category: "PPB", label: "เคลือบฟลูออไรด์ ยังไม่บันทึกปีงบนี้", detail: { basis: "อายุ 8 ปี", lastDone: null, due: "2027-09-30" } }, { code: "OFC.TTM", category: "OFC", label: "แพทย์แผนไทย (นวด ประคบ ยาสมุนไพร)", price: 250 }, { code: "OFC.DENTAL", category: "OFC", label: "ทันตกรรม (ตรวจฟัน ขูดหินปูน อุดฟัน)", price: 1200 }], all: [{ code: "PP.COLORECTAL", category: "PP", label: "คัดกรองมะเร็งลำไส้ใหญ่ (FIT)", price: 60 }, { code: "PP.ELDER_FLU", category: "PP", label: "วัคซีนไข้หวัดใหญ่ประจำปี" }, { code: "PP.UPT", category: "PP", label: "ค่าบริการทดสอบการตั้งครรภ์ (4-ANC-PRT) ยังไม่ได้คิด", price: 75 }, { code: "PP.LIPID_SCREEN", category: "PP", label: "คัดกรองไขมันในเลือด (Total cholesterol + HDL)", price: 160 }] };
     const rdu = {
       state: "ok" as const,
       hits: [
@@ -202,8 +202,8 @@ app.whenReady().then(async () => {
   const refreshOpps = async () => {
     const hn = bar.hn;
     if (!hn) return;
-    const items = await fetchOpportunities(cfg, hn);
-    if (bar.hn === hn) setBar({ opps: items ? { state: "ok", items } : { state: "error" } });
+    const r = await fetchOpportunities(cfg, hn);
+    if (bar.hn === hn) setBar({ opps: r ? { state: "ok", ...r } : { state: "error" } });
   };
   // The on-screen patient's badges (Authen/close, RLU, RDU, opportunities); one fetch at a time per HN.
   const loading = new Set<string>();

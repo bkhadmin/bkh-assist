@@ -57,8 +57,12 @@ export async function GET(req: Request) {
     if (cfg.active) for (const m of cfg.modules) for (const d of await moduleOpportunities(m.code)) defs.set(d.code, d);
 
     const [visit] = defs.size ? await hisQuery<{ vn: string; vstdate: string }>(LATEST_VISIT, [hn]) : [];
-    const items = visit ? await withPrices(await evaluateOpportunities([...defs.values()], String(visit.vn), visit.vstdate), defs) : [];
-    const body: AgentOpportunitiesResponse = { hn, vn: visit ? String(visit.vn) : null, items };
+    // every switched-on item with its price (one price query); the matched ones take the same price
+    const all = await withPrices([...defs.values()].map(({ code, category, label }) => ({ code, category, label })), defs);
+    const priceOf = new Map(all.map((o) => [o.code, o.price ?? null]));
+    const matched = visit ? await evaluateOpportunities([...defs.values()], String(visit.vn), visit.vstdate) : [];
+    const items = matched.map((o) => ({ ...o, price: priceOf.get(o.code) ?? null }));
+    const body: AgentOpportunitiesResponse = { hn, vn: visit ? String(visit.vn) : null, items, all };
     return Response.json(body);
   } catch (err) {
     // privacy: no HN in the log
