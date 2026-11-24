@@ -2,9 +2,9 @@
 -- apps/web/src/lib/rules/modules/upt-z32.ts. It also runs at ซักประวัติ OPD and in a new module งานเวชระเบียน.
 -- These rows are only the admin switches; the rules are defined in code.
 
--- งานเวชระเบียน: HOSxP screen TPatientOPDVisitListForm (the coders' visit list); assigned to machines on the admin page.
+-- งานเวชระเบียน: HOSxP screen TPatientOPDVisitDiagnosisEntryForm (diagnosis entry, opened from the visit list); assigned to machines on the admin page.
 insert into modules (code, label, hosxp_form, description) values
-  ('MedRecordcheck', 'งานเวชระเบียน', 'TPatientOPDVisitListForm',
+  ('MedRecordcheck', 'งานเวชระเบียน', 'TPatientOPDVisitDiagnosisEntryForm',
    'ตรวจการลงรหัสของงานเวชระเบียน: ผล Urine pregnancy test ต้องลงรหัสตามผล (ผลลบ Z32.0 · ผลบวก Z32.1)')
 on conflict (code) do nothing;
 

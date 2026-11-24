@@ -48,7 +48,7 @@ export async function findByVn(vn: string): Promise<VisitCandidate | null> {
 /**
  * No vstdate filter: staff also edit and re-save past visits (e.g. yesterday's), and those must be found too.
  * Re-proven 2026-11-06: ref on ix_hn (~180 rows per patient), so the visit date is not needed for speed.
- * ovstdiag too: coding a past visit (งานเวชระเบียน, TPatientOPDVisitListForm) updates ovstdiag.update_datetime but
+ * ovstdiag too: coding a past visit (งานเวชระเบียน, TPatientOPDVisitDiagnosisEntryForm) updates ovstdiag.update_datetime but
  * not opdscreen. 2026-11-24: 30 later coder edits found 30/30 (opdscreen alone 0/30), none ambiguous;
  * EXPLAIN ref on opdscreen.ix_hn and ovstdiag.hn, <= 41 ms.
  */
