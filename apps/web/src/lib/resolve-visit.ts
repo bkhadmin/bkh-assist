@@ -48,15 +48,20 @@ export async function findByVn(vn: string): Promise<VisitCandidate | null> {
 /**
  * No vstdate filter: staff also edit and re-save past visits (e.g. yesterday's), and those must be found too.
  * Re-proven 2026-11-06: ref on ix_hn (~180 rows per patient), so the visit date is not needed for speed.
+ * ovstdiag too: coding a past visit (งานเวชระเบียน, TPatientOPDVisitListForm) updates ovstdiag.update_datetime but
+ * not opdscreen. 2026-11-24: 30 later coder edits found 30/30 (opdscreen alone 0/30), none ambiguous;
+ * EXPLAIN ref on opdscreen.ix_hn and ovstdiag.hn, <= 41 ms.
  */
 export async function findByHnAndTime(hn: string, from: string, to: string): Promise<VisitCandidate[]> {
-  const sql = `SELECT vn, hn, update_datetime AS updatedAt
-    FROM opdscreen
-    WHERE hn = ?
-      AND update_datetime BETWEEN ? AND ?
-    ORDER BY update_datetime DESC
+  const sql = `SELECT vn, hn, MAX(updatedAt) AS updatedAt FROM (
+      SELECT vn, hn, update_datetime AS updatedAt FROM opdscreen WHERE hn = ? AND update_datetime BETWEEN ? AND ?
+      UNION ALL
+      SELECT vn, hn, update_datetime AS updatedAt FROM ovstdiag WHERE hn = ? AND update_datetime BETWEEN ? AND ?
+    ) x
+    GROUP BY vn, hn
+    ORDER BY updatedAt DESC
     LIMIT 11`;
-  return hisQuery<VisitCandidate>(sql, [hn, from, to]);
+  return hisQuery<VisitCandidate>(sql, [hn, from, to, hn, from, to]);
 }
 
 /**

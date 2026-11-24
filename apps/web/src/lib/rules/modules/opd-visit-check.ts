@@ -1,4 +1,5 @@
 import type { Module } from "../types";
+import { uptZ32Rule } from "./upt-z32";
 
 /**
  * OPDVisitcheck — ตรวจการบันทึกหน้าซักประวัติ OPD (HOSxP: TDoctorWorkBenchQueueManagerForm).
@@ -20,5 +21,6 @@ export const OPDVisitcheck: Module = {
     { code: "OPDVisitcheck.BW", label: "น้ำหนัก", severity: "error", sql: has("bw > 0") },
     { code: "OPDVisitcheck.HEIGHT", label: "ส่วนสูง", severity: "error", sql: has("height > 0") },
     { code: "OPDVisitcheck.CC", label: "อาการสำคัญ (CC)", severity: "error", sql: has("TRIM(cc) <> ''") },
+    uptZ32Rule("OPDVisitcheck"),
   ],
 };
